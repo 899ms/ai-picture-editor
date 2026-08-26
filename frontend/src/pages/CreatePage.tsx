@@ -6,6 +6,7 @@ import ImageDropzone from '@/components/ImageDropzone'
 import { errorMessage } from '@/hooks/useAuth'
 import { useAssets, useUploadAsset } from '@/hooks/useAssets'
 import { useGenerate } from '@/hooks/useRun'
+import { useCreateSession } from '@/hooks/useSessions'
 import { readPromptDraft, savePromptDraft } from '@/lib/promptDraft'
 
 export default function CreatePage() {
@@ -13,6 +14,13 @@ export default function CreatePage() {
   const { data: assets = [], isPending } = useAssets()
   const upload = useUploadAsset()
   const generate = useGenerate()
+  const createSession = useCreateSession()
+
+  const openEditor = (assetId: string) =>
+    createSession.mutate(
+      { current_asset_id: assetId },
+      { onSuccess: (session) => navigate(`/editor/${session.id}`) },
+    )
 
   return (
     <div className="mx-auto max-w-4xl px-8 py-10">
@@ -36,7 +44,10 @@ export default function CreatePage() {
 
       <section className="mt-10">
         <h2 className="text-muted mb-3 text-sm font-medium">上传已有图片</h2>
-        <ImageDropzone onFile={(file) => upload.mutate(file)} disabled={upload.isPending} />
+        <ImageDropzone
+          onFile={(file) => upload.mutate(file, { onSuccess: (asset) => openEditor(asset.id) })}
+          disabled={upload.isPending || createSession.isPending}
+        />
         {upload.isError && (
           <p className="text-danger mt-2 text-sm">{errorMessage(upload.error)}</p>
         )}
@@ -52,7 +63,7 @@ export default function CreatePage() {
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {assets.map((asset) => (
-              <AssetCard key={asset.id} asset={asset} />
+              <AssetCard key={asset.id} asset={asset} onSelect={() => openEditor(asset.id)} />
             ))}
           </div>
         )}

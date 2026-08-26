@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app import storage
 from app.config import get_settings
 from app.queue import close_queue
-from app.routers import assets, auth, events, health, runs
+from app.routers import assets, auth, events, health, runs, sessions
 
 settings = get_settings()
 
@@ -32,6 +32,7 @@ api.include_router(health.router)
 api.include_router(auth.router)
 api.include_router(assets.router)
 api.include_router(runs.router)
+api.include_router(sessions.router)
 app.include_router(api)
 
 # SSE 不挂在 /api 下，便于反向代理单独关闭缓冲

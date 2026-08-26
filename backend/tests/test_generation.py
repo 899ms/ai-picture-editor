@@ -87,12 +87,14 @@ async def test_run_requires_authentication(client: httpx.AsyncClient):
     assert (await client.get(f"/api/runs/{uuid.uuid4()}")).status_code == 401
 
 
-async def test_runs_are_isolated_per_user(client: httpx.AsyncClient, credentials):
+async def test_runs_are_isolated_per_user(
+    client: httpx.AsyncClient, credentials, other_credentials
+):
     await client.post("/api/auth/register", json=credentials)
     run_id = (await start_run(client))["id"]
 
     await client.post("/api/auth/logout")
-    await client.post("/api/auth/register", json={"username": "test_intruder", "password": "secret123"})
+    await client.post("/api/auth/register", json=other_credentials)
 
     assert (await client.get(f"/api/runs/{run_id}")).status_code == 404
 
@@ -114,11 +116,13 @@ async def test_progress_stream_replays_snapshot_then_closes(signed_in: httpx.Asy
     assert frames[0]["progress"] == 100
 
 
-async def test_progress_stream_rejects_other_users_run(client: httpx.AsyncClient, credentials):
+async def test_progress_stream_rejects_other_users_run(
+    client: httpx.AsyncClient, credentials, other_credentials
+):
     await client.post("/api/auth/register", json=credentials)
     run_id = (await start_run(client))["id"]
 
     await client.post("/api/auth/logout")
-    await client.post("/api/auth/register", json={"username": "test_intruder", "password": "secret123"})
+    await client.post("/api/auth/register", json=other_credentials)
 
     assert (await client.get(f"/events/runs/{run_id}")).status_code == 404

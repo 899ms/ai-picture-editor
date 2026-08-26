@@ -1,0 +1,76 @@
+import uuid
+from datetime import datetime
+from typing import Annotated
+
+from pydantic import BaseModel, Field
+
+from app.layers import LayerDocument
+from app.models import EditHistory, EditSession
+from app.schemas.asset import AssetOut
+
+MAX_WALL_ASSETS = 12
+
+
+class SessionCreateIn(BaseModel):
+    current_asset_id: uuid.UUID
+    # 同批未采用的候选一并进图片墙
+    asset_ids: Annotated[list[uuid.UUID], Field(max_length=MAX_WALL_ASSETS)] = []
+    title: str | None = None
+
+
+class SessionPatchIn(BaseModel):
+    title: str | None = None
+    current_asset_id: uuid.UUID | None = None
+
+
+class SessionOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    revision: int
+    original_asset_id: uuid.UUID
+    current_asset_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def of(cls, record: EditSession) -> "SessionOut":
+        return cls(
+            id=record.id,
+            title=record.title,
+            revision=record.revision,
+            original_asset_id=record.original_asset_id,
+            current_asset_id=record.current_asset_id,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+
+
+class SessionDetailOut(SessionOut):
+    document: LayerDocument
+    assets: list[AssetOut] = []
+
+    @classmethod
+    def of_detail(cls, record: EditSession, assets: list[AssetOut]) -> "SessionDetailOut":
+        return cls(
+            **SessionOut.of(record).model_dump(),
+            document=LayerDocument.model_validate(record.document),
+            assets=assets,
+        )
+
+
+class HistoryOut(BaseModel):
+    seq: int
+    action: str
+    params: dict
+    result: dict
+    created_at: datetime
+
+    @classmethod
+    def of(cls, entry: EditHistory) -> "HistoryOut":
+        return cls(
+            seq=entry.seq,
+            action=entry.action,
+            params=entry.params,
+            result=entry.result,
+            created_at=entry.created_at,
+        )

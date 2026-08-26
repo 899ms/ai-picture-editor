@@ -69,13 +69,15 @@ async def test_upload_requires_authentication(client: httpx.AsyncClient):
     assert response.status_code == 401
 
 
-async def test_assets_are_isolated_per_user(client: httpx.AsyncClient, credentials):
+async def test_assets_are_isolated_per_user(
+    client: httpx.AsyncClient, credentials, other_credentials
+):
     await client.post("/api/auth/register", json=credentials)
     created = await client.post("/api/assets", files=upload_payload(make_image()))
     asset_id = created.json()["id"]
 
     await client.post("/api/auth/logout")
-    await client.post("/api/auth/register", json={"username": "test_otheruser", "password": "secret123"})
+    await client.post("/api/auth/register", json=other_credentials)
 
     assert (await client.get(f"/api/assets/{asset_id}")).status_code == 404
     assert (await client.get("/api/assets")).json() == []

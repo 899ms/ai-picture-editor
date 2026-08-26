@@ -40,6 +40,7 @@ class RunOut(BaseModel):
     progress: int
     stage: str
     error: str | None
+    prompt: str | None = None
     candidates: list[AssetOut] = []
 
     @classmethod
@@ -51,5 +52,6 @@ class RunOut(BaseModel):
             progress=run.progress,
             stage=run.stage,
             error=run.error,
+            prompt=run.params.get("prompt"),
             candidates=candidates or [],
         )

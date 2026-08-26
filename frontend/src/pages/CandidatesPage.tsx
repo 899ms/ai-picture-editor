@@ -3,12 +3,26 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import type { Asset } from '@/api/assets'
 import { useRun } from '@/hooks/useRun'
+import { useCreateSession } from '@/hooks/useSessions'
 
 export default function CandidatesPage() {
   const { runId = '' } = useParams()
   const navigate = useNavigate()
   const [picked, setPicked] = useState<string | null>(null)
-  const { status, progress, stage, error, candidates, notFound } = useRun(runId || null)
+  const { status, progress, stage, error, prompt, candidates, notFound } = useRun(runId || null)
+  const createSession = useCreateSession()
+
+  // 采用一张进入编辑，同批其余候选一并带进会话图片墙
+  const adopt = () =>
+    picked &&
+    createSession.mutate(
+      {
+        current_asset_id: picked,
+        asset_ids: candidates.map((asset) => asset.id),
+        title: prompt ?? undefined,
+      },
+      { onSuccess: (session) => navigate(`/editor/${session.id}`) },
+    )
 
   if (notFound) {
     return <Centered title="任务不存在" hint="链接可能已失效，回到创作页重新开始。" />
@@ -36,15 +50,17 @@ export default function CandidatesPage() {
       <header className="mb-6 flex items-end justify-between gap-4">
         <div>
           <h1 className="text-ink text-2xl font-semibold tracking-tight">选出一张</h1>
-          <p className="text-muted mt-1 text-sm">挑一张满意的进入编辑，其余候选图会保留在素材库。</p>
+          <p className="text-muted mt-1 text-sm">
+            挑一张满意的进入编辑，其余候选图会留在会话图片墙随时切回。
+          </p>
         </div>
         <button
           type="button"
-          disabled={!picked}
-          onClick={() => navigate(`/editor?asset=${picked}`)}
+          disabled={!picked || createSession.isPending}
+          onClick={adopt}
           className="bg-ink hover:bg-dark rounded-control shrink-0 px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
         >
-          进入编辑
+          {createSession.isPending ? '打开中…' : '进入编辑'}
         </button>
       </header>
 
