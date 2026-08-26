@@ -10,7 +10,9 @@ export default function AgentConversation({ sessionId }: { sessionId: string }) 
   const { data: turns = [], isPending } = useTurns(sessionId)
   const end = useRef<HTMLDivElement>(null)
 
-  useEffect(() => end.current?.scrollIntoView({ block: 'end' }), [turns.length])
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: 'end' })
+  }, [turns.length])
 
   if (isPending) {
     return <p className="text-faint min-h-0 flex-1 px-4 py-4 text-xs">加载中…</p>

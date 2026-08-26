@@ -85,16 +85,14 @@ function Workspace({ sessionId }: { sessionId: string }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [session, tools, closeCrop, setCompareOpen, fit, stepZoom, zoomTo])
 
-  if (isError) {
-    return (
+  if (!session) {
+    return isError ? (
       <Notice title="会话不存在" hint="链接可能已失效，回到创作页新建一个。">
         <CreateLink />
       </Notice>
+    ) : (
+      <Notice title="加载中" hint="正在读取会话状态" />
     )
-  }
-
-  if (!session) {
-    return <Notice title="加载中" hint="正在读取会话状态" />
   }
 
   return (

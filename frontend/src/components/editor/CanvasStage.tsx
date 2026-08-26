@@ -53,7 +53,9 @@ export default function CanvasStage({
 
   const fitted = useRef('')
 
-  useEffect(() => setViewport(size), [size, setViewport])
+  useEffect(() => {
+    setViewport(size)
+  }, [size, setViewport])
 
   useEffect(() => {
     if (!size.width || !size.height) return
