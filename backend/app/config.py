@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     # image provider: mock | dashscope
     image_provider: str = "mock"
     dashscope_api_key: str = ""
+    # 业务空间专属域名为 https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com
+    dashscope_base_url: str = "https://dashscope.aliyuncs.com"
     text_to_image_model: str = "qwen-image-3.0-pro"
     image_edit_model: str = "qwen-image-edit-max"
     planner_model: str = "qwen-plus"

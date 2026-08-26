@@ -7,7 +7,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app import storage
 from app.config import get_settings
-from app.routers import assets, auth, health
+from app.queue import close_queue
+from app.routers import assets, auth, events, health, runs
 
 settings = get_settings()
 
@@ -16,6 +17,7 @@ settings = get_settings()
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     await asyncio.to_thread(storage.ensure_bucket)
     yield
+    await close_queue()
 
 
 app = FastAPI(
@@ -29,7 +31,11 @@ api = APIRouter(prefix="/api")
 api.include_router(health.router)
 api.include_router(auth.router)
 api.include_router(assets.router)
+api.include_router(runs.router)
 app.include_router(api)
+
+# SSE 不挂在 /api 下，便于反向代理单独关闭缓冲
+app.include_router(events.router)
 
 # 生产环境下前端与 API 同源，静态产物由本服务托管；开发环境走 Vite dev proxy。
 if settings.frontend_dist.is_dir():

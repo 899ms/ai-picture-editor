@@ -5,7 +5,7 @@ from sqlalchemy import ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import UUIDBase
+from app.models.base import UUIDBase, enum_column
 
 
 class AssetKind(enum.StrEnum):
@@ -30,8 +30,8 @@ class Asset(UUIDBase):
     user_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    kind: Mapped[AssetKind] = mapped_column(String(16))
-    source: Mapped[AssetSource] = mapped_column(String(16))
+    kind: Mapped[AssetKind] = mapped_column(enum_column(AssetKind))
+    source: Mapped[AssetSource] = mapped_column(enum_column(AssetSource))
     storage_key: Mapped[str] = mapped_column(String(255), unique=True)
     image_format: Mapped[str] = mapped_column(String(8))
     width: Mapped[int]

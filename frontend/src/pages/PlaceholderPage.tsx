@@ -1,4 +1,3 @@
-/** 占位页。各功能页在对应开发步骤中替换此组件。 */
 export default function PlaceholderPage({ title, hint }: { title: string; hint: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
