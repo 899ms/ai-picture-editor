@@ -1,16 +1,34 @@
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import APIRouter, FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app import storage
 from app.config import get_settings
-from app.routers import auth, health
+from app.routers import assets, auth, health
 
 settings = get_settings()
 
-app = FastAPI(title="AI 修图智能体", docs_url="/api/docs", openapi_url="/api/openapi.json")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    await asyncio.to_thread(storage.ensure_bucket)
+    yield
+
+
+app = FastAPI(
+    title="AI 修图智能体",
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan,
+)
 
 api = APIRouter(prefix="/api")
 api.include_router(health.router)
 api.include_router(auth.router)
+api.include_router(assets.router)
 app.include_router(api)
 
 # 生产环境下前端与 API 同源，静态产物由本服务托管；开发环境走 Vite dev proxy。

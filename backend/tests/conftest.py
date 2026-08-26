@@ -8,6 +8,12 @@ from sqlalchemy import delete
 from app.db import SessionFactory
 from app.main import app
 from app.models import User
+from app.storage import ensure_bucket
+
+
+@pytest.fixture(scope="session", autouse=True)
+def bucket():
+    ensure_bucket()
 
 
 @pytest.fixture

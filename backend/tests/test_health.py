@@ -12,8 +12,8 @@ async def client():
         yield c
 
 
-async def test_health_reports_database(client: httpx.AsyncClient):
+async def test_health_reports_dependencies(client: httpx.AsyncClient):
     response = await client.get("/api/health")
 
     assert response.status_code == 200
-    assert response.json() == {"api": "ok", "database": "ok"}
+    assert response.json() == {"api": "ok", "database": "ok", "storage": "ok"}

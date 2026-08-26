@@ -1,8 +1,10 @@
+import asyncio
 from collections.abc import Awaitable
 
 from fastapi import APIRouter
 from sqlalchemy import text
 
+from app import storage
 from app.db import SessionDep
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -18,4 +20,8 @@ async def _probe(awaitable: Awaitable) -> str:
 
 @router.get("")
 async def health(session: SessionDep) -> dict[str, str]:
-    return {"api": "ok", "database": await _probe(session.execute(text("select 1")))}
+    database, object_storage = await asyncio.gather(
+        _probe(session.execute(text("select 1"))),
+        _probe(asyncio.to_thread(storage.ensure_bucket)),
+    )
+    return {"api": "ok", "database": database, "storage": object_storage}
