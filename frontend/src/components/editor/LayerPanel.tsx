@@ -229,7 +229,10 @@ function AdjustForm({
           <button
             type="button"
             disabled={disabled}
-            onClick={() => onApply(values)}
+            onClick={() => {
+              onApply(values)
+              setValues({})
+            }}
             className="bg-ink rounded-control flex-1 py-1.5 text-xs font-medium text-white disabled:opacity-40"
           >
             应用

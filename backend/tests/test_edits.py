@@ -5,7 +5,7 @@ from PIL import Image
 
 from app.edits.document import crop, flip, reorder, rotate, scale, set_opacity
 from app.edits.pixels import adjust, remove_background
-from app.edits.render import flatten
+from app.edits.render import TRANSPARENT, flatten
 from app.layers import BASE_LAYER_ID, Layer, LayerDocument, LayerKind, Transform
 from app.ratios import Ratio
 
@@ -132,3 +132,31 @@ def test_adjust_brightness_lightens_pixels():
     bright = Image.open(BytesIO(adjust(data, brightness=0.4)))
 
     assert bright.getpixel((8, 8))[0] > 80
+
+
+def test_adjust_preserves_transparent_pixels():
+    data = _png((0, 0, 0, 0), (64, 64), box=(16, 16, 48, 48))
+    result = Image.open(BytesIO(adjust(data, brightness=-0.7, contrast=-0.6)))
+
+    assert result.getpixel((2, 2))[3] == 0
+    assert result.getpixel((32, 32))[3] == 255
+    assert result.getpixel((32, 32))[0] > 0
+
+
+def test_adjust_vignette_darkens_corners():
+    data = _png((200, 180, 160, 255), (64, 64))
+    result = Image.open(BytesIO(adjust(data, vignette=0.8)))
+
+    assert result.getpixel((2, 2))[0] < result.getpixel((32, 32))[0]
+
+
+def test_flatten_can_keep_transparent_background():
+    asset_id = uuid.uuid4()
+    document = _doc(80, 80)
+    document.layers[0].asset_id = asset_id
+    raw = _png((0, 0, 0, 0), (80, 80), box=(20, 20, 60, 60))
+
+    flat = Image.open(BytesIO(flatten(document, {asset_id: raw}, background=TRANSPARENT)))
+
+    assert flat.getpixel((4, 4))[3] == 0
+    assert flat.getpixel((40, 40))[3] == 255

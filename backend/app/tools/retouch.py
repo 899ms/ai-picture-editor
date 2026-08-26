@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.edits.pixels import adjust, remove_background
+from app.edits.render import TRANSPARENT
 from app.models.asset import AssetKind, AssetSource
 from app.models.tool_run import ToolRun
 from app.services import assets, runs
@@ -46,7 +47,7 @@ async def remove_background_exec(session: AsyncSession, run: ToolRun) -> dict:
 async def adjust_image_exec(session: AsyncSession, run: ToolRun) -> dict:
     record = await require_session(session, run)
     await runs.report(session, run, 20, "读取画布")
-    data = await flatten_session(session, record)
+    data = await flatten_session(session, record, background=TRANSPARENT)
     params = {key: value for key, value in run.params.items() if value}
     await runs.report(session, run, 60, "调整色彩")
     output = await asyncio.to_thread(lambda: adjust(data, **params))

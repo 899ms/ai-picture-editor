@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import storage
-from app.edits.render import flatten
+from app.edits.render import WHITE, flatten
 from app.layers import LayerDocument
 from app.models import EditSession, ToolRun
 from app.services import assets, sessions
@@ -26,7 +26,12 @@ def document_of(record: EditSession) -> LayerDocument:
     return LayerDocument.model_validate(record.document)
 
 
-async def flatten_session(session: AsyncSession, record: EditSession) -> bytes:
+async def flatten_session(
+    session: AsyncSession,
+    record: EditSession,
+    *,
+    background: tuple[int, int, int, int] = WHITE,
+) -> bytes:
     """把当前文档拍平为 PNG，再交给像素工具。"""
     document = document_of(record)
     images: dict[uuid.UUID, bytes] = {}
@@ -37,4 +42,4 @@ async def flatten_session(session: AsyncSession, record: EditSession) -> bytes:
         if asset is None:
             continue
         images[asset.id] = await storage.get(asset.storage_key)
-    return flatten(document, images)
+    return flatten(document, images, background=background)

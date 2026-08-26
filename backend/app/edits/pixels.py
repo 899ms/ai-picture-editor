@@ -1,7 +1,7 @@
 import io
 import math
 
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+from PIL import Image, ImageChops, ImageEnhance, ImageFilter
 
 _CORNER_TOLERANCE = 28
 
@@ -38,7 +38,8 @@ def adjust(
     vignette: float = 0,
 ) -> bytes:
     image = Image.open(io.BytesIO(data)).convert("RGBA")
-    rgb, alpha = image.convert("RGB"), image.getchannel("A")
+    red, green, blue, alpha = image.split()
+    rgb = Image.merge("RGB", (red, green, blue))
 
     if brightness:
         rgb = ImageEnhance.Brightness(rgb).enhance(1 + brightness)
@@ -57,7 +58,7 @@ def adjust(
     if clarity:
         rgb = rgb.filter(ImageFilter.UnsharpMask(radius=2, percent=int(80 * clarity), threshold=2))
     if vignette:
-        rgb = ImageOps.multiply(rgb, _vignette_mask(rgb.size, vignette))
+        rgb = ImageChops.multiply(rgb, _vignette_mask(rgb.size, vignette))
 
     image = rgb.convert("RGBA")
     image.putalpha(alpha)

@@ -5,10 +5,18 @@ from PIL import Image, ImageOps
 
 from app.layers import Layer, LayerDocument, LayerKind
 
+WHITE = (255, 255, 255, 255)
+TRANSPARENT = (0, 0, 0, 0)
 
-def flatten(document: LayerDocument, images: dict[uuid.UUID, bytes]) -> bytes:
+
+def flatten(
+    document: LayerDocument,
+    images: dict[uuid.UUID, bytes],
+    *,
+    background: tuple[int, int, int, int] = WHITE,
+) -> bytes:
     """按文档合成一张 PNG。旋转绕图层中心，与画布渲染一致。"""
-    canvas = Image.new("RGBA", (document.width, document.height), (255, 255, 255, 255))
+    canvas = Image.new("RGBA", (document.width, document.height), background)
     for layer in document.layers:
         if not layer.visible or layer.kind is not LayerKind.IMAGE or layer.asset_id is None:
             continue
