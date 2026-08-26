@@ -1,0 +1,51 @@
+[project]
+name = "ai-retouch-agent-backend"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic-settings",
+    "sqlalchemy[asyncio]",
+    "asyncpg",
+    "alembic",
+    "arq",
+    "redis",
+    "boto3",
+    "pillow",
+    "python-multipart",
+    "bcrypt",
+    "pyjwt",
+    "httpx",
+]
+
+[project.optional-dependencies]
+cv = [
+    "rembg",
+    "onnxruntime",
+    "opencv-python-headless",
+    "rapidocr-onnxruntime",
+]
+agent = [
+    "langgraph",
+    "langgraph-checkpoint-postgres",
+    "langchain-core",
+    "langchain-openai",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]

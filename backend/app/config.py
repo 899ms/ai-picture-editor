@@ -1,0 +1,48 @@
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=ROOT_DIR / ".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    app_env: str = "development"
+    api_port: int = 7302
+
+    database_url: str = "postgresql+asyncpg://retouch:retouch_dev@localhost:7311/retouch"
+    redis_url: str = "redis://localhost:7312"
+
+    s3_endpoint: str = "http://localhost:7313"
+    s3_access_key: str = "retouch"
+    s3_secret_key: str = "retouch_dev"
+    s3_bucket: str = "retouch"
+    # 签名 URL 有效期，秒
+    s3_url_ttl: int = 900
+
+    jwt_secret: str = "dev-only-change-me"
+    jwt_ttl_hours: int = 24
+
+    # image provider: mock | dashscope
+    image_provider: str = "mock"
+    dashscope_api_key: str = ""
+    text_to_image_model: str = "qwen-image-3.0-pro"
+    image_edit_model: str = "qwen-image-edit-max"
+    planner_model: str = "qwen-plus"
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env == "production"
+
+    @property
+    def frontend_dist(self) -> Path:
+        return ROOT_DIR / "frontend" / "dist"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
