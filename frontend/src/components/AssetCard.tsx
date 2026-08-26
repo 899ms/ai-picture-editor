@@ -6,6 +6,7 @@ export default function AssetCard({ asset, onSelect }: { asset: Asset; onSelect?
     <button
       type="button"
       onClick={onSelect}
+      title="点击打开编辑"
       className="border-line bg-paper hover:border-brand group overflow-hidden rounded-[18px] border text-left transition-colors"
     >
       <div className="bg-canvas relative aspect-square">

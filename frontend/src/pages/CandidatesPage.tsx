@@ -58,9 +58,9 @@ export default function CandidatesPage() {
           type="button"
           disabled={!picked || createSession.isPending}
           onClick={adopt}
-          className="bg-ink hover:bg-dark rounded-control shrink-0 px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+          className="bg-ink hover:bg-dark rounded-control shrink-0 px-4 py-2 text-sm font-medium text-white transition-all duration-150 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
         >
-          {createSession.isPending ? '打开中…' : '进入编辑'}
+          {createSession.isPending ? '打开中…' : picked ? '进入编辑' : '先点选一张'}
         </button>
       </header>
 
@@ -95,15 +95,17 @@ function Candidate({
       type="button"
       onClick={onSelect}
       aria-pressed={selected}
-      className={`rounded-panel group relative block overflow-hidden border-2 bg-white transition-colors ${
-        selected ? 'border-brand' : 'border-line hover:border-line-strong'
+      className={`rounded-panel group relative block overflow-hidden border-2 bg-white transition-all duration-200 ${
+        selected
+          ? 'border-brand shadow-lift'
+          : 'border-line hover:border-brand hover:-translate-y-0.5 hover:shadow-lift'
       }`}
     >
       <img
         src={asset.url}
         alt={`候选图 ${index + 1}`}
         loading="lazy"
-        className="block max-h-[52vh] w-full object-contain"
+        className="block max-h-[52vh] w-full object-contain transition-transform duration-300 group-hover:scale-[1.01]"
       />
       <span className="text-muted bg-paper/90 absolute top-2 left-2 rounded-full px-2 py-0.5 text-xs font-medium backdrop-blur">
         {index + 1}

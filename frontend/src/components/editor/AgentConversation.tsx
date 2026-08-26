@@ -57,12 +57,15 @@ function TurnBlock({ turn, sessionId }: { turn: Turn; sessionId: string }) {
 function StepCard({ step, sessionId }: { step: PlanStep; sessionId: string }) {
   const queryClient = useQueryClient()
   const { status, progress, stage, error } = useRun(step.run_id)
+  const watched = useRef(false)
 
   useEffect(() => {
-    // 工具产出会进图片墙并写编辑记录，终态后统一刷新会话数据
-    if (status && isTerminal(status)) {
-      void queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
-    }
+    if (status === 'queued' || status === 'running') watched.current = true
+    if (!watched.current || !status || !isTerminal(status)) return
+    watched.current = false
+    void queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    void queryClient.invalidateQueries({ queryKey: ['session', sessionId, 'history'] })
+    void queryClient.invalidateQueries({ queryKey: ['session', sessionId, 'messages'] })
   }, [status, sessionId, queryClient])
 
   const running = status === 'queued' || status === 'running'

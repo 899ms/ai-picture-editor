@@ -1,12 +1,14 @@
 import { useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import CanvasHint from '@/components/editor/CanvasHint'
 import CanvasStage from '@/components/editor/CanvasStage'
 import EditorToolbar from '@/components/editor/EditorToolbar'
 import ImageWall from '@/components/editor/ImageWall'
 import LayerPanel from '@/components/editor/LayerPanel'
 import SessionSidebar from '@/components/editor/SessionSidebar'
 import { usePatchSession, useSession, useSessionTools } from '@/hooks/useSessions'
+import { ZOOM_STEP, useCanvasView } from '@/stores/canvasView'
 import { useEditorUi } from '@/stores/editorUi'
 
 export default function EditorPage() {
@@ -30,7 +32,16 @@ function Workspace({ sessionId }: { sessionId: string }) {
   const { data: session, isError } = useSession(sessionId)
   const patch = usePatchSession(sessionId)
   const tools = useSessionTools(sessionId)
-  const ui = useEditorUi()
+
+  const cropOpen = useEditorUi((state) => state.cropOpen)
+  const compareOpen = useEditorUi((state) => state.compareOpen)
+  const panel = useEditorUi((state) => state.panel)
+  const closeCrop = useEditorUi((state) => state.closeCrop)
+  const setCompareOpen = useEditorUi((state) => state.setCompareOpen)
+
+  const fit = useCanvasView((state) => state.fit)
+  const stepZoom = useCanvasView((state) => state.stepZoom)
+  const zoomTo = useCanvasView((state) => state.zoomTo)
 
   const urls = useMemo(
     () => new Map((session?.assets ?? []).map((asset) => [asset.id, asset.url])),
@@ -43,25 +54,36 @@ function Workspace({ sessionId }: { sessionId: string }) {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
         return
       }
+      if (event.key === 'Escape') {
+        closeCrop()
+        setCompareOpen(false)
+        return
+      }
+
       const meta = event.metaKey || event.ctrlKey
       if (meta && event.key.toLowerCase() === 'z') {
         event.preventDefault()
         if (event.shiftKey) {
           if (session.can_redo) tools.redo()
         } else if (session.can_undo) tools.undo()
+        return
       }
-      if (meta && event.key.toLowerCase() === 'y' && session.can_redo) {
+      if (meta && event.key.toLowerCase() === 'y') {
         event.preventDefault()
-        tools.redo()
+        if (session.can_redo) tools.redo()
+        return
       }
-      if (event.key === 'Escape') {
-        ui.closeCrop()
-        ui.setCompareOpen(false)
-      }
+
+      // 视图快捷键不带修饰键，避开浏览器自身的缩放
+      if (meta || event.shiftKey || event.altKey) return
+      if (event.key === '0') fit(session.document)
+      else if (event.key === '1') zoomTo(1)
+      else if (event.key === '=' || event.key === '+') stepZoom(ZOOM_STEP)
+      else if (event.key === '-') stepZoom(1 / ZOOM_STEP)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [session, tools, ui])
+  }, [session, tools, closeCrop, setCompareOpen, fit, stepZoom, zoomTo])
 
   if (isError) {
     return (
@@ -84,30 +106,27 @@ function Workspace({ sessionId }: { sessionId: string }) {
           onRename={(title) => patch.mutate({ title })}
         />
 
-        {tools.pendingStage && (
-          <p className="text-muted bg-soft px-4 py-1.5 text-xs">
-            {tools.pendingStage}
-            {tools.pendingProgress ? ` · ${tools.pendingProgress}%` : ''}
-          </p>
-        )}
-
         <div className="relative min-h-0 flex-1">
           <CanvasStage
             document={session.document}
             previous={session.previous_document}
             urls={urls}
           />
-          {ui.compareOpen && session.previous_document && (
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={ui.compareAt}
-              onChange={(event) => ui.setCompareAt(Number(event.target.value))}
-              aria-label="前后对比"
-              className="accent-brand absolute bottom-4 left-1/2 w-56 -translate-x-1/2"
-            />
+          <CanvasHint
+            text={
+              tools.busy
+                ? `${tools.pendingStage || '处理中'}${tools.pendingProgress ? ` · ${tools.pendingProgress}%` : ''}`
+                : cropOpen
+                  ? '拖动裁剪框，点确定应用 · Esc 取消'
+                  : compareOpen
+                    ? '拖动画布上的圆点对比上一版 · Esc 退出'
+                    : null
+            }
+          />
+          {panel && (
+            <div className="shadow-panel animate-slide-in absolute inset-y-0 right-0 z-20">
+              <LayerPanel session={session} tools={tools} />
+            </div>
           )}
         </div>
 
@@ -118,8 +137,6 @@ function Workspace({ sessionId }: { sessionId: string }) {
           onPick={(current_asset_id) => patch.mutate({ current_asset_id })}
         />
       </div>
-
-      {ui.panel && <LayerPanel session={session} tools={tools} />}
     </>
   )
 }

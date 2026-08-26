@@ -22,7 +22,10 @@ export default function EditorToolbar({
   tools: SessionTools
   onRename: (title: string) => void
 }) {
-  const { scale, fit, zoomBy, zoomTo } = useCanvasView()
+  const scale = useCanvasView((state) => state.scale)
+  const fit = useCanvasView((state) => state.fit)
+  const stepZoom = useCanvasView((state) => state.stepZoom)
+  const zoomTo = useCanvasView((state) => state.zoomTo)
   const ui = useEditorUi()
 
   const confirmCrop = () => {
@@ -53,40 +56,53 @@ export default function EditorToolbar({
               <ToolButton
                 key={item.value}
                 active={ui.cropRatio === item.value}
+                title={item.value === 'free' ? '自由裁剪' : `按 ${item.label} 裁剪`}
                 onClick={() => ui.setCropRatio(item.value, session.document)}
               >
                 {item.label}
               </ToolButton>
             ))}
-            <ToolButton onClick={confirmCrop}>确定</ToolButton>
-            <ToolButton onClick={ui.closeCrop}>取消</ToolButton>
+            <ToolButton title="按当前框裁剪画布" onClick={confirmCrop}>
+              确定
+            </ToolButton>
+            <ToolButton title="退出裁剪 Esc" onClick={ui.closeCrop}>
+              取消
+            </ToolButton>
           </>
         ) : (
           <>
             <ToolButton
               disabled={tools.busy}
               active={ui.cropOpen}
+              title="按比例裁剪画布"
               onClick={() => ui.openCrop(session.document)}
             >
               裁剪
             </ToolButton>
             <ToolButton
               disabled={tools.busy}
+              title="左右翻转当前图层"
               onClick={() => tools.invoke('flip_layer', { direction: 'horizontal' })}
             >
               水平翻转
             </ToolButton>
             <ToolButton
               disabled={tools.busy}
+              title="上下翻转当前图层"
               onClick={() => tools.invoke('flip_layer', { direction: 'vertical' })}
             >
               垂直翻转
             </ToolButton>
-            <ToolButton disabled={tools.busy} onClick={() => tools.invoke('remove_background')}>
+            <ToolButton
+              disabled={tools.busy}
+              title="抠出主体，背景变透明"
+              onClick={() => tools.invoke('remove_background')}
+            >
               去背景
             </ToolButton>
             <ToolButton
               active={ui.panel === 'adjust'}
+              title="调整亮度、对比度和色彩"
               onClick={() => ui.setPanel(ui.panel === 'adjust' ? null : 'adjust')}
             >
               调色
@@ -96,39 +112,49 @@ export default function EditorToolbar({
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
-        <ToolButton disabled={tools.busy || !session.can_undo} onClick={tools.undo}>
+        <ToolButton
+          disabled={tools.busy || !session.can_undo}
+          title={session.can_undo ? '撤销上一步 ⌘Z' : '没有可撤销的操作'}
+          onClick={tools.undo}
+        >
           撤销
         </ToolButton>
-        <ToolButton disabled={tools.busy || !session.can_redo} onClick={tools.redo}>
+        <ToolButton
+          disabled={tools.busy || !session.can_redo}
+          title={session.can_redo ? '重做 ⌘⇧Z' : '没有可重做的操作'}
+          onClick={tools.redo}
+        >
           重做
         </ToolButton>
         <ToolButton
           active={ui.compareOpen}
           disabled={!session.previous_document}
+          title={session.previous_document ? '与上一版对比' : '还没有上一版'}
           onClick={() => ui.setCompareOpen(!ui.compareOpen)}
         >
           对比
         </ToolButton>
 
         <div className="border-line rounded-control ml-1 flex items-center gap-0.5 border p-0.5">
-          <ZoomButton label="缩小" onClick={() => zoomBy(1 / ZOOM_STEP)}>
+          <ZoomButton label="缩小 -" onClick={() => stepZoom(1 / ZOOM_STEP)}>
             －
           </ZoomButton>
           <button
             type="button"
             onClick={() => zoomTo(1)}
-            title="实际像素"
-            className="text-muted hover:text-ink w-12 rounded-[6px] px-1 py-1 text-xs font-medium tabular-nums"
+            title="实际像素 · 按 1"
+            className="text-muted hover:bg-soft hover:text-ink w-12 rounded-[6px] px-1 py-1 text-xs font-medium tabular-nums transition-all duration-150 active:scale-95"
           >
             {Math.round(scale * 100)}%
           </button>
-          <ZoomButton label="放大" onClick={() => zoomBy(ZOOM_STEP)}>
+          <ZoomButton label="放大 +" onClick={() => stepZoom(ZOOM_STEP)}>
             ＋
           </ZoomButton>
           <button
             type="button"
             onClick={() => fit(session.document)}
-            className="text-muted hover:text-ink rounded-[6px] px-2 py-1 text-xs font-medium"
+            title="适应窗口 · 按 0，画布内双击同样生效"
+            className="text-muted hover:bg-soft hover:text-ink rounded-[6px] px-2 py-1 text-xs font-medium transition-all duration-150 active:scale-95"
           >
             适应
           </button>
@@ -136,6 +162,7 @@ export default function EditorToolbar({
 
         <ToolButton
           active={ui.panel === 'layers'}
+          title="图层、变换和编辑记录"
           onClick={() => ui.setPanel(ui.panel === 'layers' ? null : 'layers')}
         >
           图层
@@ -150,19 +177,22 @@ function ToolButton({
   onClick,
   disabled,
   active,
+  title,
 }: {
   children: React.ReactNode
   onClick: () => void
   disabled?: boolean
   active?: boolean
+  title?: string
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
+      title={title}
       aria-pressed={active}
-      className={`rounded-control px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`rounded-control px-2.5 py-1.5 text-xs font-medium transition-all duration-150 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 ${
         active ? 'bg-brand-soft text-brand-strong' : 'text-muted hover:bg-soft hover:text-ink'
       }`}
     >
@@ -186,7 +216,7 @@ function ZoomButton({
       onClick={onClick}
       title={label}
       aria-label={label}
-      className="text-muted hover:text-ink grid size-7 place-items-center rounded-[6px] text-sm"
+      className="text-muted hover:bg-soft hover:text-ink grid size-7 place-items-center rounded-[6px] text-sm transition-all duration-150 active:scale-90"
     >
       {children}
     </button>

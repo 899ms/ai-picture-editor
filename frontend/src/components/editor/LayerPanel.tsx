@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import type { Asset } from '@/api/assets'
 import { ACTION_LABELS, type Layer, type SessionDetail } from '@/api/sessions'
@@ -20,6 +20,13 @@ const ADJUST_FIELDS: { key: string; label: string; min?: number }[] = [
   { key: 'vignette', label: '晕影', min: 0 },
 ]
 
+const REORDER_LABELS = {
+  top: '置顶',
+  up: '上移',
+  down: '下移',
+  bottom: '置底',
+} as const
+
 export default function LayerPanel({
   session,
   tools,
@@ -29,13 +36,15 @@ export default function LayerPanel({
 }) {
   const current = session.assets.find((asset) => asset.id === session.current_asset_id)
   const { data: history = [] } = useSessionHistory(session.id)
-  const { selectedLayerId, selectLayer, panel } = useEditorUi()
+  const selectedLayerId = useEditorUi((state) => state.selectedLayerId)
+  const selectLayer = useEditorUi((state) => state.selectLayer)
+  const panel = useEditorUi((state) => state.panel)
   const selected =
     session.document.layers.find((layer) => layer.id === selectedLayerId) ??
     session.document.layers.at(-1)
 
   return (
-    <aside className="border-line bg-paper w-72 shrink-0 overflow-y-auto border-l">
+    <aside className="border-line bg-paper scrollbar-slim h-full w-72 shrink-0 overflow-y-auto border-l">
       {panel === 'adjust' && (
         <AdjustForm
           disabled={tools.busy}
@@ -58,14 +67,24 @@ export default function LayerPanel({
 
       {selected && (
         <Section title="变换">
+          <p className="text-faint mb-2.5 text-[11px] leading-relaxed">
+            拖动即预览，松手写入画布，可用 ⌘Z 撤销。双击滑杆复位。
+          </p>
           <LayerControls
             layer={selected}
             disabled={tools.busy}
             onOpacity={(opacity) =>
-              tools.invoke('set_layer_opacity', { layer_id: selected.id, opacity })
+              tools.invoke('set_layer_opacity', {
+                layer_id: selected.id,
+                opacity,
+              })
             }
             onScale={(scale) =>
-              tools.invoke('scale_layer', { layer_id: selected.id, scale_x: scale, scale_y: scale })
+              tools.invoke('scale_layer', {
+                layer_id: selected.id,
+                scale_x: scale,
+                scale_y: scale,
+              })
             }
             onRotate={(rotation) =>
               tools.invoke('rotate_layer', { layer_id: selected.id, rotation })
@@ -113,8 +132,10 @@ function LayerRow({
       <button
         type="button"
         onClick={onSelect}
-        className={`rounded-control flex w-full items-center gap-2 border px-2.5 py-2 text-left ${
-          active ? 'border-brand bg-brand-soft' : 'border-line'
+        className={`rounded-control flex w-full items-center gap-2 border px-2.5 py-2 text-left transition-all duration-150 active:scale-[0.99] ${
+          active
+            ? 'border-brand bg-brand-soft'
+            : 'border-line hover:border-line-strong hover:bg-soft'
         }`}
       >
         <span className="text-ink min-w-0 flex-1 truncate text-xs font-medium">{layer.name}</span>
@@ -141,40 +162,54 @@ function LayerControls({
   onRotate: (value: number) => void
   onReorder: (place: 'top' | 'bottom' | 'up' | 'down') => void
 }) {
+  const setLayerPreview = useEditorUi((state) => state.setLayerPreview)
   const scale = Math.abs(layer.transform.scale_x)
+
+  // 文档回传新值后撤下预览，避免与真实结果叠加
+  useEffect(() => {
+    setLayerPreview(null)
+  }, [setLayerPreview, layer.id, layer.opacity, layer.transform.scale_x, layer.transform.rotation])
+
+  useEffect(() => () => setLayerPreview(null), [setLayerPreview])
 
   return (
     <div className="space-y-3">
       <SliderField
         label="透明度"
         value={layer.opacity}
+        origin={1}
         min={0}
         max={1}
         step={0.01}
-            format={(value) => `${Math.round(value * 100)}%`}
-            disabled={disabled}
-            onCommit={onOpacity}
-          />
-          <SliderField
-            label="图层缩放"
-            value={scale}
-            min={0.1}
-            max={3}
-            step={0.05}
-            format={(value) => `${Math.round(value * 100)}%`}
-            disabled={disabled}
-            onCommit={onScale}
-          />
-          <SliderField
-            label="旋转"
-            value={layer.transform.rotation}
-            min={-180}
-            max={180}
-            step={1}
-            format={(value) => `${Math.round(value)}°`}
-            disabled={disabled}
-            onCommit={onRotate}
-          />
+        format={(value) => `${Math.round(value * 100)}%`}
+        disabled={disabled}
+        onInput={(opacity) => setLayerPreview({ id: layer.id, opacity })}
+        onCommit={onOpacity}
+      />
+      <SliderField
+        label="图层缩放"
+        value={scale}
+        origin={1}
+        min={0.1}
+        max={3}
+        step={0.05}
+        format={(value) => `${Math.round(value * 100)}%`}
+        disabled={disabled}
+        onInput={(value) => setLayerPreview({ id: layer.id, scale: value })}
+        onCommit={onScale}
+      />
+      <SliderField
+        label="旋转"
+        value={layer.transform.rotation}
+        origin={0}
+        min={-180}
+        max={180}
+        step={1}
+        format={(value) => `${Math.round(value)}°`}
+        disabled={disabled}
+        onInput={(rotation) => setLayerPreview({ id: layer.id, rotation })}
+        onCommit={onRotate}
+      />
       <div className="grid grid-cols-4 gap-1">
         {(['top', 'up', 'down', 'bottom'] as const).map((place) => (
           <button
@@ -182,9 +217,9 @@ function LayerControls({
             type="button"
             disabled={disabled}
             onClick={() => onReorder(place)}
-            className="border-line text-muted hover:text-ink rounded-control border py-1 text-[10px] disabled:opacity-40"
+            className="border-line text-muted hover:text-ink hover:bg-soft rounded-control border py-1 text-[10px] transition-all duration-150 active:scale-95 disabled:opacity-40"
           >
-            {{ top: '置顶', up: '上移', down: '下移', bottom: '置底' }[place]}
+            {REORDER_LABELS[place]}
           </button>
         ))}
       </div>
@@ -200,40 +235,59 @@ function AdjustForm({
   onApply: (params: Record<string, number>) => void
 }) {
   const [values, setValues] = useState<Record<string, number>>({})
+  const setAdjustPreview = useEditorUi((state) => state.setAdjustPreview)
+  const touched = Object.keys(values).length > 0
+
+  useEffect(() => () => setAdjustPreview(null), [setAdjustPreview])
+
+  const clear = () => {
+    setValues({})
+    setAdjustPreview(null)
+  }
 
   return (
     <Section title="调色">
+      <p className="text-faint mb-2.5 text-[11px] leading-relaxed">
+        拖动即在画布预览，锐化与清晰度需应用后可见。点应用写入新版本，可撤销。
+      </p>
       <div className="space-y-2.5">
         {ADJUST_FIELDS.map((field) => (
           <SliderField
             key={field.key}
             label={field.label}
             value={values[field.key] ?? 0}
+            origin={0}
             min={field.min ?? -1}
             max={1}
             step={0.05}
             format={(value) => value.toFixed(2)}
             disabled={disabled}
-            onCommit={(value) => setValues((current) => ({ ...current, [field.key]: value }))}
+            onInput={(value) => setAdjustPreview({ ...values, [field.key]: value })}
+            onCommit={(value) => {
+              const next = { ...values, [field.key]: value }
+              setValues(next)
+              setAdjustPreview(next)
+            }}
           />
         ))}
         <div className="flex gap-2">
           <button
             type="button"
-            disabled={disabled}
-            onClick={() => setValues({})}
-            className="border-line text-muted hover:text-ink rounded-control flex-1 border py-1.5 text-xs"
+            disabled={disabled || !touched}
+            onClick={clear}
+            className="border-line text-muted hover:text-ink hover:bg-soft rounded-control flex-1 border py-1.5 text-xs transition-all duration-150 active:scale-[0.98] disabled:opacity-40"
           >
             重置
           </button>
           <button
             type="button"
-            disabled={disabled}
+            disabled={disabled || !touched}
+            title={touched ? '写入当前调色' : '先拖动滑杆再应用'}
             onClick={() => {
               onApply(values)
-              setValues({})
+              clear()
             }}
-            className="bg-ink rounded-control flex-1 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+            className="bg-ink hover:bg-dark rounded-control flex-1 py-1.5 text-xs font-medium text-white transition-all duration-150 active:scale-[0.98] disabled:opacity-40"
           >
             应用
           </button>
@@ -246,26 +300,42 @@ function AdjustForm({
 function SliderField({
   label,
   value,
+  origin,
   min,
   max,
   step,
   format,
   disabled,
+  onInput,
   onCommit,
 }: {
   label: string
   value: number
+  origin: number
   min: number
   max: number
   step: number
   format: (value: number) => string
   disabled: boolean
+  onInput: (value: number) => void
   onCommit: (value: number) => void
 }) {
   const [draft, setDraft] = useState<number | null>(null)
 
+  const commit = () => {
+    if (draft !== null && draft !== value) onCommit(draft)
+    setDraft(null)
+  }
+
   return (
-    <label className="block">
+    <label
+      className="block select-none"
+      title="双击复位"
+      onDoubleClick={() => {
+        setDraft(null)
+        if (value !== origin) onCommit(origin)
+      }}
+    >
       <span className="mb-1 flex justify-between text-[11px]">
         <span className="text-muted">{label}</span>
         <span className="text-ink tabular-nums">{format(draft ?? value)}</span>
@@ -277,12 +347,14 @@ function SliderField({
         step={step}
         disabled={disabled}
         value={draft ?? value}
-        onChange={(event) => setDraft(Number(event.target.value))}
-        onPointerUp={() => {
-          if (draft !== null && draft !== value) onCommit(draft)
-          setDraft(null)
+        onChange={(event) => {
+          const next = Number(event.target.value)
+          setDraft(next)
+          onInput(next)
         }}
-        className="accent-brand w-full"
+        onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
+        onPointerUp={commit}
+        onLostPointerCapture={commit}
       />
     </label>
   )

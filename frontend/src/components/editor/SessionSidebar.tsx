@@ -4,6 +4,7 @@ import { Link, NavLink } from 'react-router-dom'
 import AgentConversation from '@/components/editor/AgentConversation'
 import MessageComposer from '@/components/editor/MessageComposer'
 import { useSendMessage } from '@/hooks/useAgent'
+import { errorMessage } from '@/hooks/useAuth'
 import { useSessions } from '@/hooks/useSessions'
 import { formatDateTime } from '@/lib/format'
 
@@ -53,7 +54,11 @@ function Conversation({ sessionId }: { sessionId: string }) {
   return (
     <>
       <AgentConversation sessionId={sessionId} />
-      <MessageComposer pending={send.isPending} onSend={(text) => send.mutate(text)} />
+      <MessageComposer
+        pending={send.isPending}
+        error={send.isError ? errorMessage(send.error) : null}
+        onSend={(text) => send.mutate(text)}
+      />
     </>
   )
 }
@@ -70,7 +75,7 @@ function SessionList({ activeId }: { activeId: string }) {
   }
 
   return (
-    <ul className="border-line max-h-52 shrink-0 space-y-0.5 overflow-y-auto border-b p-2">
+    <ul className="border-line scrollbar-slim animate-fade-in max-h-52 shrink-0 space-y-0.5 overflow-y-auto border-b p-2">
       {sessions.map((session) => (
         <li key={session.id}>
           <NavLink

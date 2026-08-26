@@ -12,6 +12,10 @@ export function useSendMessage(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (text: string) => agentApi.send(sessionId, text),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: turnsKey(sessionId) }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: turnsKey(sessionId) })
+      void queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+      void queryClient.invalidateQueries({ queryKey: ['session', sessionId, 'history'] })
+    },
   })
 }

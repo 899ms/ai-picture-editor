@@ -10,8 +10,11 @@ export function useElementSize<T extends HTMLElement>() {
     if (!element) return
 
     const observer = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect
-      setSize({ width: Math.round(width), height: Math.round(height) })
+      const width = Math.round(entry.contentRect.width)
+      const height = Math.round(entry.contentRect.height)
+      setSize((current) =>
+        current.width === width && current.height === height ? current : { width, height },
+      )
     })
     observer.observe(element)
     return () => observer.disconnect()

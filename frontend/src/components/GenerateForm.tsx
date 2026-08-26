@@ -46,7 +46,7 @@ export default function GenerateForm({
             event.currentTarget.form?.requestSubmit()
           }
         }}
-        placeholder="描述你想要的画面，例如：白色陶瓷马克杯放在浅木色桌面，晨光从左侧照入，背景干净"
+        placeholder="描述你想要的画面，例如：白色陶瓷马克杯放在浅木色桌面，晨光从左侧照入。回车生成，Shift+Enter 换行"
         aria-label="画面描述"
         className="text-ink placeholder:text-faint w-full resize-none bg-transparent px-4 pt-3 pb-1 text-[15px] leading-relaxed outline-none"
       />
@@ -76,14 +76,17 @@ export default function GenerateForm({
         <button
           type="submit"
           disabled={!canSubmit}
-          className="bg-ink hover:bg-dark rounded-control ml-auto px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+          className="bg-ink hover:bg-dark rounded-control ml-auto px-4 py-2 text-sm font-medium text-white transition-all duration-150 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
         >
           {pending ? '提交中…' : '生成'}
         </button>
       </div>
+      <p className="text-faint px-3 pb-2 text-[11px]">
+        {pending ? '任务已提交，稍后会跳到候选页' : '回车生成 · Shift+Enter 换行'}
+      </p>
 
       {advanced && (
-        <div className="border-line mt-1 border-t px-4 py-3">
+        <div className="border-line animate-fade-in mt-1 border-t px-4 py-3">
           <input
             value={negative}
             onChange={(event) => setNegative(event.target.value)}
@@ -117,8 +120,8 @@ function Segmented<T extends string | number>({
           type="button"
           onClick={() => onChange(option.value)}
           aria-pressed={option.value === value}
-          className={`rounded-[6px] px-2 py-1 text-xs font-medium transition-colors ${
-            option.value === value ? 'bg-ink text-white' : 'text-muted hover:text-ink'
+          className={`rounded-[6px] px-2 py-1 text-xs font-medium transition-all duration-150 active:scale-95 ${
+            option.value === value ? 'bg-ink text-white' : 'text-muted hover:bg-soft hover:text-ink'
           }`}
         >
           {option.label}

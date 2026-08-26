@@ -24,25 +24,24 @@ export function useRun(runId: string | null) {
     enabled: Boolean(runId),
   })
 
+  const snapshotStatus = snapshot.data?.status
+
   useEffect(() => {
-    if (!runId) return
+    // 已结束的任务不必再挂 SSE，否则重连会反复打快照、刷新签名 URL
+    if (!runId || (snapshotStatus && isTerminal(snapshotStatus))) return
 
     const source = new EventSource(`/events/runs/${runId}`)
-    const refresh = () => void queryClient.invalidateQueries({ queryKey: runKey(runId) })
-
     source.onmessage = (event) => {
       const payload = JSON.parse(event.data) as Progress
       setLive(payload)
       if (isTerminal(payload.status)) {
         source.close()
-        refresh()
+        void queryClient.invalidateQueries({ queryKey: runKey(runId) })
       }
     }
-    // 连接中断时回退到快照接口，避免界面停在过期进度上
-    source.onerror = refresh
 
     return () => source.close()
-  }, [runId, queryClient])
+  }, [runId, snapshotStatus, queryClient])
 
   const run = snapshot.data
   // 切换任务后旧连接的残留帧不应影响新任务

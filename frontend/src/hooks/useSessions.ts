@@ -8,7 +8,9 @@ import {
   type SessionDetail,
   type SessionPatchInput,
 } from '@/api/sessions'
+import { errorMessage } from '@/hooks/useAuth'
 import { useRun } from '@/hooks/useRun'
+import { toast } from '@/stores/toasts'
 
 const LIST_KEY = ['sessions']
 const detailKey = (id: string) => ['session', id]
@@ -72,7 +74,9 @@ export function useSessionTools(id: string) {
     if (!pendingRunId || !live.status || !isTerminal(live.status)) return
     void queryClient.invalidateQueries({ queryKey: detailKey(id) })
     void queryClient.invalidateQueries({ queryKey: historyKey(id) })
-  }, [pendingRunId, live.status, id, queryClient])
+    if (live.status === 'failed') toast(live.error || '处理失败', 'danger')
+    else toast(live.stage || '已完成')
+  }, [pendingRunId, live.status, live.error, live.stage, id, queryClient])
 
   const invoke = useMutation({
     mutationFn: ({ tool, params }: { tool: string; params?: Record<string, unknown> }) =>
@@ -81,10 +85,19 @@ export function useSessionTools(id: string) {
       cache(body.session)
       if (!isTerminal(body.run.status)) setPendingRunId(body.run.id)
     },
+    onError: (error) => toast(errorMessage(error), 'danger'),
   })
 
-  const undo = useMutation({ mutationFn: () => sessionsApi.undo(id), onSuccess: cache })
-  const redo = useMutation({ mutationFn: () => sessionsApi.redo(id), onSuccess: cache })
+  const undo = useMutation({
+    mutationFn: () => sessionsApi.undo(id),
+    onSuccess: cache,
+    onError: (error) => toast(errorMessage(error), 'danger'),
+  })
+  const redo = useMutation({
+    mutationFn: () => sessionsApi.redo(id),
+    onSuccess: cache,
+    onError: (error) => toast(errorMessage(error), 'danger'),
+  })
 
   const waiting = Boolean(pendingRunId && (!live.status || !isTerminal(live.status)))
   const busy = invoke.isPending || undo.isPending || redo.isPending || waiting

@@ -6,6 +6,9 @@ import type { LayerDocument } from '@/api/sessions'
 export type CropRatio = Ratio | 'free'
 export type CropRect = { x: number; y: number; width: number; height: number }
 
+/** 滑杆拖动期间的即时效果，只作用于画布渲染，松手后由工具写入文档。 */
+export type LayerPreview = { id: string; opacity?: number; scale?: number; rotation?: number }
+
 type EditorUi = {
   selectedLayerId: string | null
   cropOpen: boolean
@@ -14,6 +17,8 @@ type EditorUi = {
   compareOpen: boolean
   compareAt: number
   panel: 'layers' | 'adjust' | null
+  adjustPreview: Record<string, number> | null
+  layerPreview: LayerPreview | null
   selectLayer: (id: string | null) => void
   openCrop: (document: LayerDocument, ratio?: CropRatio) => void
   setCropRatio: (ratio: CropRatio, document: LayerDocument) => void
@@ -22,6 +27,8 @@ type EditorUi = {
   setCompareOpen: (open: boolean) => void
   setCompareAt: (value: number) => void
   setPanel: (panel: 'layers' | 'adjust' | null) => void
+  setAdjustPreview: (values: Record<string, number> | null) => void
+  setLayerPreview: (preview: LayerPreview | null) => void
 }
 
 function fitCrop(document: LayerDocument, ratio: CropRatio): CropRect {
@@ -57,8 +64,10 @@ export const useEditorUi = create<EditorUi>((set) => ({
   compareOpen: false,
   compareAt: 0.5,
   panel: null,
+  adjustPreview: null,
+  layerPreview: null,
 
-  selectLayer: (selectedLayerId) => set({ selectedLayerId }),
+  selectLayer: (selectedLayerId) => set({ selectedLayerId, layerPreview: null }),
 
   openCrop: (document, ratio = 'free') =>
     set({
@@ -79,5 +88,9 @@ export const useEditorUi = create<EditorUi>((set) => ({
 
   setCompareAt: (compareAt) => set({ compareAt }),
 
-  setPanel: (panel) => set({ panel }),
+  setPanel: (panel) => set({ panel, adjustPreview: null, layerPreview: null }),
+
+  setAdjustPreview: (adjustPreview) => set({ adjustPreview }),
+
+  setLayerPreview: (layerPreview) => set({ layerPreview }),
 }))
