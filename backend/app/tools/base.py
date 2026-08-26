@@ -27,5 +27,8 @@ class ToolSpec:
     params: type[BaseModel]
     handler: ToolHandler
     needs_approval: bool = False
+    # 只改 LayerDocument 的工具当场执行；像素工具仍走队列
+    queued: bool = True
+    session_required: bool = False
     # 素材 ID、随机种子这类参数应由服务端从上下文填入，不暴露给模型
     agent_hidden: tuple[str, ...] = field(default_factory=tuple)

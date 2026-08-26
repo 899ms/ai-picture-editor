@@ -45,6 +45,24 @@ class LayerDocument(BaseModel):
     layers: list[Layer] = Field(default_factory=list)
 
 
+class LayerMissing(Exception):
+    """指定图层不存在，或画布上没有可操作的图像层。"""
+
+
+def resolve_layer(document: LayerDocument, layer_id: str | None) -> Layer:
+    """按 id 取图层；未指定时取最上层可见图像层，供界面与 Agent 共用默认目标。"""
+    if layer_id:
+        for layer in document.layers:
+            if layer.id == layer_id:
+                return layer
+        raise LayerMissing(f"图层不存在：{layer_id}")
+
+    for layer in reversed(document.layers):
+        if layer.kind is LayerKind.IMAGE and layer.visible:
+            return layer
+    raise LayerMissing("没有可操作的图层")
+
+
 def document_of(asset: Asset) -> LayerDocument:
     """以整张图片作为底图建立文档。底图锁定，拆层后才会被主体与背景层取代。"""
     return LayerDocument(

@@ -23,3 +23,8 @@ DELIVERY_RATIOS = (Ratio.SQUARE, Ratio.PORTRAIT_4_5, Ratio.VERTICAL_9_16)
 
 def size_of(ratio: Ratio) -> tuple[int, int]:
     return SIZES[ratio]
+
+
+def parts_of(ratio: Ratio) -> tuple[int, int]:
+    left, right = ratio.value.split(":")
+    return int(left), int(right)

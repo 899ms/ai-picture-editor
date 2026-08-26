@@ -1,6 +1,14 @@
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { sessionsApi, type SessionCreateInput, type SessionPatchInput } from '@/api/sessions'
+import { isTerminal } from '@/api/runs'
+import {
+  sessionsApi,
+  type SessionCreateInput,
+  type SessionDetail,
+  type SessionPatchInput,
+} from '@/api/sessions'
+import { useRun } from '@/hooks/useRun'
 
 const LIST_KEY = ['sessions']
 const detailKey = (id: string) => ['session', id]
@@ -26,6 +34,15 @@ export function useSessionHistory(id: string | null) {
   })
 }
 
+function useCacheSession(id: string) {
+  const queryClient = useQueryClient()
+  return (detail: SessionDetail) => {
+    queryClient.setQueryData(detailKey(id), detail)
+    void queryClient.invalidateQueries({ queryKey: LIST_KEY })
+    void queryClient.invalidateQueries({ queryKey: historyKey(id) })
+  }
+}
+
 export function useCreateSession() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -38,13 +55,48 @@ export function useCreateSession() {
 }
 
 export function usePatchSession(id: string) {
-  const queryClient = useQueryClient()
+  const cache = useCacheSession(id)
   return useMutation({
     mutationFn: (input: SessionPatchInput) => sessionsApi.patch(id, input),
-    onSuccess: (detail) => {
-      queryClient.setQueryData(detailKey(id), detail)
-      void queryClient.invalidateQueries({ queryKey: LIST_KEY })
-      void queryClient.invalidateQueries({ queryKey: historyKey(id) })
-    },
+    onSuccess: cache,
   })
 }
+
+export function useSessionTools(id: string) {
+  const queryClient = useQueryClient()
+  const cache = useCacheSession(id)
+  const [pendingRunId, setPendingRunId] = useState<string | null>(null)
+  const live = useRun(pendingRunId)
+
+  useEffect(() => {
+    if (!pendingRunId || !live.status || !isTerminal(live.status)) return
+    void queryClient.invalidateQueries({ queryKey: detailKey(id) })
+    void queryClient.invalidateQueries({ queryKey: historyKey(id) })
+  }, [pendingRunId, live.status, id, queryClient])
+
+  const invoke = useMutation({
+    mutationFn: ({ tool, params }: { tool: string; params?: Record<string, unknown> }) =>
+      sessionsApi.invoke(id, tool, params),
+    onSuccess: (body) => {
+      cache(body.session)
+      if (!isTerminal(body.run.status)) setPendingRunId(body.run.id)
+    },
+  })
+
+  const undo = useMutation({ mutationFn: () => sessionsApi.undo(id), onSuccess: cache })
+  const redo = useMutation({ mutationFn: () => sessionsApi.redo(id), onSuccess: cache })
+
+  const waiting = Boolean(pendingRunId && (!live.status || !isTerminal(live.status)))
+  const busy = invoke.isPending || undo.isPending || redo.isPending || waiting
+
+  return {
+    invoke: (tool: string, params?: Record<string, unknown>) => invoke.mutate({ tool, params }),
+    undo: () => undo.mutate(),
+    redo: () => redo.mutate(),
+    busy,
+    pendingStage: waiting ? live.stage : '',
+    pendingProgress: waiting ? live.progress : 0,
+  }
+}
+
+export type SessionTools = ReturnType<typeof useSessionTools>

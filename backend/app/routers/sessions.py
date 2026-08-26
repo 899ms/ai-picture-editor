@@ -9,17 +9,22 @@ from app.deps import CurrentUser
 from app.models import Asset, EditSession, User
 from app.schemas.agent import MessageIn, TurnOut
 from app.schemas.asset import AssetOut
+from app.schemas.run import RunOut
 from app.schemas.session import (
     HistoryOut,
     SessionCreateIn,
     SessionDetailOut,
     SessionOut,
     SessionPatchIn,
+    ToolInvokeIn,
+    ToolInvokeOut,
 )
 from app.services import agent as agent_service
 from app.services import assets as asset_service
-from app.services import sessions
-from app.services.sessions import SessionNotFound
+from app.services import sessions, tools
+from app.services.sessions import CannotRedo, CannotUndo, SessionNotFound
+from app.services.tools import InvalidParams
+from app.tools import UnknownTool
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -40,7 +45,14 @@ async def _load(session: AsyncSession, user: User, session_id: uuid.UUID) -> Edi
 
 async def _detail(session: AsyncSession, record: EditSession) -> SessionDetailOut:
     wall = await sessions.assets_of(session, record)
-    return SessionDetailOut.of_detail(record, [AssetOut.of(asset) for asset in wall])
+    can_undo, can_redo = await sessions.undo_state(session, record)
+    return SessionDetailOut.of_detail(
+        record,
+        [AssetOut.of(asset) for asset in wall],
+        previous_document=await sessions.previous_document(session, record),
+        can_undo=can_undo,
+        can_redo=can_redo,
+    )
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -87,6 +99,45 @@ async def patch_session(
         asset = await _asset(session, user, payload.current_asset_id)
         record = await sessions.switch_current(session, record, asset)
 
+    return await _detail(session, record)
+
+
+@router.post("/{session_id}/tools", status_code=status.HTTP_202_ACCEPTED)
+async def invoke_tool(
+    session_id: uuid.UUID, payload: ToolInvokeIn, user: CurrentUser, session: SessionDep
+) -> ToolInvokeOut:
+    record = await _load(session, user, session_id)
+    try:
+        run = await tools.submit(session, user.id, payload.tool, payload.params, record.id)
+    except UnknownTool as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except InvalidParams as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    record = await sessions.get_for_user(session, record.id, user.id)
+    return ToolInvokeOut(run=RunOut.of(run), session=await _detail(session, record))
+
+
+@router.post("/{session_id}/undo")
+async def undo_session(
+    session_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> SessionDetailOut:
+    record = await _load(session, user, session_id)
+    try:
+        record = await sessions.undo(session, record)
+    except CannotUndo as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "没有可撤销的操作") from exc
+    return await _detail(session, record)
+
+
+@router.post("/{session_id}/redo")
+async def redo_session(
+    session_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> SessionDetailOut:
+    record = await _load(session, user, session_id)
+    try:
+        record = await sessions.redo(session, record)
+    except CannotRedo as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "没有可重做的操作") from exc
     return await _detail(session, record)
 
 

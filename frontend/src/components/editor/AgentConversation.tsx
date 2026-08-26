@@ -19,7 +19,7 @@ export default function AgentConversation({ sessionId }: { sessionId: string }) 
   if (turns.length === 0) {
     return (
       <p className="text-faint min-h-0 flex-1 px-4 py-4 text-xs leading-relaxed">
-        用一句话说明要怎么改，例如「换成纯白背景」。工具执行结果会出现在下方图片墙，选中才会替换当前图。
+        用一句话说明要怎么改，例如「水平翻转」或「去背景」。画布变换会直接作用在当前图上。
       </p>
     )
   }

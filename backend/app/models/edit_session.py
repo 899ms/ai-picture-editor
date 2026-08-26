@@ -27,6 +27,8 @@ class EditSession(UUIDBase):
     )
     # 采用候选或切换图片墙时递增，用于判定旧选区已失效
     revision: Mapped[int] = mapped_column(default=1)
+    # 指向当前撤销位置；新操作会截断该序号之后的重做分支
+    history_seq: Mapped[int] = mapped_column(default=1)
     document: Mapped[dict] = mapped_column(JSONB, default=dict)
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMPTZ, server_default=func.now(), onupdate=func.now()

@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     text_to_image_model: str = "qwen-image-3.0-pro"
     image_edit_model: str = "qwen-image-edit-max"
     planner_model: str = "qwen-plus"
+    # auto：有 rembg 用 rembg，否则四角抠图；测试强制 corner 以免下载模型
+    matting_provider: str = "auto"
 
     @property
     def is_production(self) -> bool:

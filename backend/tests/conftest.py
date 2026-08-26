@@ -35,6 +35,14 @@ def mock_provider():
     get_image_provider.cache_clear()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def corner_matting():
+    settings = get_settings()
+    original, settings.matting_provider = settings.matting_provider, "corner"
+    yield
+    settings.matting_provider = original
+
+
 def _test_redis_url(url: str) -> str:
     head, _, tail = url.rpartition("/")
     return f"{head}/{TEST_REDIS_DB}" if tail.isdigit() else f"{url.rstrip('/')}/{TEST_REDIS_DB}"
