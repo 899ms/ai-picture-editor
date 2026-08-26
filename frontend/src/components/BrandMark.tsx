@@ -29,6 +29,7 @@ export default function BrandMark({
             strokeWidth="2"
             strokeLinecap="round"
           />
+          <circle cx="15.5" cy="3.5" r="1.55" fill="currentColor" />
         </svg>
       </span>
       {children}
