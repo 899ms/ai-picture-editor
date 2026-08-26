@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import SessionDep
 from app.deps import CurrentUser
 from app.models import Asset, EditSession, User
+from app.schemas.agent import MessageIn, TurnOut
 from app.schemas.asset import AssetOut
 from app.schemas.session import (
     HistoryOut,
@@ -15,6 +16,7 @@ from app.schemas.session import (
     SessionOut,
     SessionPatchIn,
 )
+from app.services import agent as agent_service
 from app.services import assets as asset_service
 from app.services import sessions
 from app.services.sessions import SessionNotFound
@@ -95,3 +97,19 @@ async def get_history(
     record = await _load(session, user, session_id)
     entries = await sessions.history_of(session, record)
     return [HistoryOut.of(entry) for entry in entries]
+
+
+@router.get("/{session_id}/messages")
+async def list_messages(
+    session_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> list[TurnOut]:
+    record = await _load(session, user, session_id)
+    return [TurnOut.of(turn) for turn in await agent_service.turns_of(session, record)]
+
+
+@router.post("/{session_id}/messages", status_code=status.HTTP_201_CREATED)
+async def send_message(
+    session_id: uuid.UUID, payload: MessageIn, user: CurrentUser, session: SessionDep
+) -> TurnOut:
+    record = await _load(session, user, session_id)
+    return TurnOut.of(await agent_service.respond(session, record, payload.text))

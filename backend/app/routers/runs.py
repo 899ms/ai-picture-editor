@@ -6,12 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import SessionDep
 from app.deps import CurrentUser
 from app.models.tool_run import ToolRun
-from app.queue import enqueue
 from app.schemas.asset import AssetOut
 from app.schemas.run import GenerateIn, RunOut
 from app.services import assets as asset_service
-from app.services import generation, runs
+from app.services import runs, tools
 from app.services.runs import RunNotFound
+from app.tools import GENERATE_IMAGE
 
 router = APIRouter(tags=["runs"])
 
@@ -32,9 +32,7 @@ async def create_generation(payload: GenerateIn, user: CurrentUser, session: Ses
         if await asset_service.get_for_user(session, user.id, asset_id) is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "参考图不存在")
 
-    params = payload.model_dump(mode="json")
-    run = await runs.create(session, user.id, generation.TOOL, params)
-    await enqueue("generate_images", run.id)
+    run = await tools.submit(session, user.id, GENERATE_IMAGE.name, payload.model_dump(mode="json"))
     return RunOut.of(run)
 
 

@@ -93,6 +93,14 @@ async def create(
     return record
 
 
+async def load(session: AsyncSession, session_id: uuid.UUID) -> EditSession:
+    """不带用户过滤的读取，仅供已确认归属的后台任务使用。"""
+    record = await session.get(EditSession, session_id)
+    if record is None:
+        raise SessionNotFound
+    return record
+
+
 async def get_for_user(
     session: AsyncSession, session_id: uuid.UUID, user_id: uuid.UUID
 ) -> EditSession:
@@ -135,8 +143,17 @@ async def history_of(session: AsyncSession, record: EditSession) -> list[EditHis
     return list(result)
 
 
-async def attach(session: AsyncSession, record: EditSession, assets: Iterable[Asset]) -> None:
+async def record_result(
+    session: AsyncSession,
+    record: EditSession,
+    assets: Iterable[Asset],
+    action: str,
+    params: dict,
+    result: dict,
+) -> None:
+    """工具产出并入图片墙并留下编辑记录。不改当前图，采用与否交给用户。"""
     await _attach(session, record, assets)
+    await _append_history(session, record, action, params, result)
     await session.commit()
 
 

@@ -30,6 +30,10 @@ class ToolRun(UUIDBase):
     user_id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
+    # 从创作页直接发起生成时还没有会话，产出图片届时不进任何图片墙
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("edit_sessions.id", ondelete="CASCADE"), default=None
+    )
     tool: Mapped[str] = mapped_column(String(48))
     status: Mapped[RunStatus] = mapped_column(enum_column(RunStatus), default=RunStatus.QUEUED)
     progress: Mapped[int] = mapped_column(default=0)

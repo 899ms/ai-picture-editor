@@ -7,7 +7,7 @@ import pytest
 from app.db import SessionFactory
 from app.models.tool_run import RunStatus
 from app.services import runs
-from app.tasks.generate import generate_images
+from app.tasks.tools import run_tool
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ async def test_worker_produces_requested_number_of_candidates(signed_in: httpx.A
     run_id = uuid.UUID((await start_run(signed_in, count=2, ratio="4:5"))["id"])
 
     async with SessionFactory() as session:
-        await generate_images({}, run_id)
+        await run_tool({}, run_id)
         run = await runs.load(session, run_id)
 
     assert run.status is RunStatus.SUCCEEDED
@@ -48,8 +48,8 @@ async def test_worker_produces_requested_number_of_candidates(signed_in: httpx.A
 async def test_finished_run_is_not_executed_twice(signed_in: httpx.AsyncClient):
     run_id = uuid.UUID((await start_run(signed_in, count=1))["id"])
 
-    await generate_images({}, run_id)
-    await generate_images({}, run_id)
+    await run_tool({}, run_id)
+    await run_tool({}, run_id)
 
     body = (await signed_in.get(f"/api/runs/{run_id}")).json()
     assert len(body["candidates"]) == 1
@@ -102,7 +102,7 @@ async def test_runs_are_isolated_per_user(
 async def test_progress_stream_replays_snapshot_then_closes(signed_in: httpx.AsyncClient):
     """已结束的任务也要能拿到终态，页面刷新后才不会一直停在进度条。"""
     run_id = (await start_run(signed_in, count=1))["id"]
-    await generate_images({}, uuid.UUID(run_id))
+    await run_tool({}, uuid.UUID(run_id))
 
     frames = []
     async with signed_in.stream("GET", f"/events/runs/{run_id}") as stream:

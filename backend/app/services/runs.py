@@ -23,8 +23,16 @@ def snapshot(run: ToolRun) -> dict:
     }
 
 
-async def create(session: AsyncSession, user_id: uuid.UUID, tool: str, params: dict) -> ToolRun:
-    run = ToolRun(user_id=user_id, tool=tool, params=params, stage="等待开始")
+async def create(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    tool: str,
+    params: dict,
+    session_id: uuid.UUID | None = None,
+) -> ToolRun:
+    run = ToolRun(
+        user_id=user_id, session_id=session_id, tool=tool, params=params, stage="等待开始"
+    )
     session.add(run)
     await session.commit()
     await session.refresh(run)

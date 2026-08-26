@@ -1,6 +1,6 @@
-from app.tasks.generate import generate_images
 from app.tasks.ping import ping
+from app.tasks.tools import run_tool
 
-TASKS = [ping, generate_images]
+TASKS = [ping, run_tool]
 
-__all__ = ["TASKS", "generate_images", "ping"]
+__all__ = ["TASKS", "ping", "run_tool"]
