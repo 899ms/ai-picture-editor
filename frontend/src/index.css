@@ -24,9 +24,25 @@
 
   --radius-card: 18px;
   --radius-control: 12px;
+  --radius-panel: 26px;
 
   --shadow-card: 0 16px 42px rgb(25 31 26 / 0.09);
   --shadow-control: 0 8px 22px rgb(27 31 27 / 0.08);
+  --shadow-lift: 0 20px 46px -18px rgb(20 26 20 / 0.18);
+  --shadow-panel: 0 28px 72px -26px rgb(20 26 20 / 0.3);
+
+  --animate-rise: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 14px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }
 
 @layer base {
@@ -41,4 +57,29 @@
   :focus-visible {
     @apply outline-brand outline-2 outline-offset-2;
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* 首屏顶部的光晕，为居中的输入面板提供视觉重心 */
+@utility bg-glow {
+  background:
+    radial-gradient(62% 52% at 50% -6%, rgb(232 242 245 / 0.95), transparent 72%),
+    radial-gradient(34% 34% at 84% 6%, rgb(217 255 110 / 0.28), transparent 70%);
+}
+
+/* 网格底纹，向下淡出以免干扰正文 */
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, rgb(23 25 23 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(23 25 23 / 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(68% 58% at 50% 0%, #000 10%, transparent 100%);
 }
