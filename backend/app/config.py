@@ -24,7 +24,8 @@ class Settings(BaseSettings):
     # 签名 URL 有效期，秒
     s3_url_ttl: int = 900
 
-    jwt_secret: str = "dev-only-change-me"
+    # HS256 要求密钥不短于 32 字节
+    jwt_secret: str = "dev-only-secret-please-change-in-production"
     jwt_ttl_hours: int = 24
 
     # image provider: mock | dashscope

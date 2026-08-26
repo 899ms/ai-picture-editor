@@ -1,4 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+
+import { useAuthActions, useCurrentUser } from '@/hooks/useAuth'
 
 const NAV_ITEMS = [
   { to: '/create', label: '创作', icon: 'M12 4v16m8-8H4' },
@@ -16,6 +18,13 @@ function NavIcon({ path }: { path: string }) {
 
 /** 工作台外壳：左侧导航默认收起为图标，悬停展开文字。 */
 export default function WorkbenchLayout() {
+  const navigate = useNavigate()
+  const { user } = useCurrentUser()
+  const { logout } = useAuthActions()
+
+  const signOut = () =>
+    logout.mutate(undefined, { onSuccess: () => navigate('/', { replace: true }) })
+
   return (
     <div className="flex h-screen overflow-hidden">
       <nav className="group bg-paper border-line flex w-16 flex-col border-r py-4 transition-[width] duration-200 hover:w-52">
@@ -49,6 +58,22 @@ export default function WorkbenchLayout() {
             </li>
           ))}
         </ul>
+
+        <div className="border-line mt-2 border-t px-2 pt-3">
+          <button
+            type="button"
+            onClick={signOut}
+            title={user ? `${user.username} · 退出登录` : '退出登录'}
+            className="text-muted hover:bg-soft hover:text-ink flex w-full items-center gap-3 rounded-[12px] px-3 py-2.5 text-sm transition-colors"
+          >
+            <span className="bg-brand-soft text-brand-strong grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold">
+              {user?.username.slice(0, 1).toUpperCase() ?? '?'}
+            </span>
+            <span className="truncate opacity-0 transition-opacity group-hover:opacity-100">
+              退出登录
+            </span>
+          </button>
+        </div>
       </nav>
 
       <main className="flex-1 overflow-auto">

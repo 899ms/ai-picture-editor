@@ -10,6 +10,8 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   server: {
+    // 显式绑定 IPv4 回环，否则 Vite 只监听 ::1，127.0.0.1 直连会被拒绝
+    host: '127.0.0.1',
     port: 7301,
     strictPort: true,
     proxy: {
