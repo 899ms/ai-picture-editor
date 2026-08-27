@@ -67,6 +67,10 @@ async def execute(session: AsyncSession, run: ToolRun) -> None:
     else:
         await runs.finish(session, run, status=RunStatus.SUCCEEDED, result=result)
 
+    from app.services import agent as agent_service
+
+    await agent_service.continue_plan(session, run)
+
 
 async def _record(session: AsyncSession, run: ToolRun, result: dict) -> None:
     if run.session_id is None:

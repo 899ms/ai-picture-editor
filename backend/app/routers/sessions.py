@@ -24,6 +24,7 @@ from app.schemas.session import (
 from app.services import agent as agent_service
 from app.services import assets as asset_service
 from app.services import selections, sessions, tools
+from app.services.agent import CannotCancel, CannotConfirm, CannotRetry, TurnNotFound
 from app.services.selections import EmptySelection, StaleSelection
 from app.services.sessions import CannotRedo, CannotUndo, SessionNotFound
 from app.services.tools import InvalidParams
@@ -226,3 +227,42 @@ async def send_message(
 ) -> TurnOut:
     record = await _load(session, user, session_id)
     return TurnOut.of(await agent_service.respond(session, record, payload.text))
+
+
+@router.post("/{session_id}/messages/{turn_id}/confirm")
+async def confirm_plan(
+    session_id: uuid.UUID, turn_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> TurnOut:
+    record = await _load(session, user, session_id)
+    try:
+        return TurnOut.of(await agent_service.confirm(session, record, turn_id))
+    except TurnNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "对话不存在") from exc
+    except CannotConfirm as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "当前没有待确认的步骤") from exc
+
+
+@router.post("/{session_id}/messages/{turn_id}/cancel")
+async def cancel_plan(
+    session_id: uuid.UUID, turn_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> TurnOut:
+    record = await _load(session, user, session_id)
+    try:
+        return TurnOut.of(await agent_service.cancel(session, record, turn_id))
+    except TurnNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "对话不存在") from exc
+    except CannotCancel as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "当前没有可取消的步骤") from exc
+
+
+@router.post("/{session_id}/messages/{turn_id}/retry")
+async def retry_plan(
+    session_id: uuid.UUID, turn_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> TurnOut:
+    record = await _load(session, user, session_id)
+    try:
+        return TurnOut.of(await agent_service.retry(session, record, turn_id))
+    except TurnNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "对话不存在") from exc
+    except CannotRetry as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "没有失败的步骤可重试") from exc

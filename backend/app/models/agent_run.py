@@ -10,9 +10,9 @@ from app.models.tool_run import RunStatus
 
 
 class AgentRun(UUIDBase):
-    """一轮自然语言指令的规划结果，对应编辑页左栏的一次问答。
+    """一轮自然语言指令的规划与执行进度，对应编辑页左栏的一次问答。
 
-    status 只表示规划本身是否成功；计划中每一步的执行进度由其 ToolRun 承载。
+    plan 即断点：刷新或 worker 重启后按已落库的步骤状态继续。
     """
 
     __tablename__ = "agent_runs"

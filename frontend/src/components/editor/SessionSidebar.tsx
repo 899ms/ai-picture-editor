@@ -3,7 +3,7 @@ import { Link, NavLink } from 'react-router-dom'
 
 import AgentConversation from '@/components/editor/AgentConversation'
 import MessageComposer from '@/components/editor/MessageComposer'
-import { useSendMessage } from '@/hooks/useAgent'
+import { useSendMessage, useTurns } from '@/hooks/useAgent'
 import { errorMessage } from '@/hooks/useAuth'
 import { useSessions } from '@/hooks/useSessions'
 import { formatDateTime } from '@/lib/format'
@@ -50,13 +50,20 @@ export default function SessionSidebar({ activeId }: { activeId: string }) {
 
 function Conversation({ sessionId }: { sessionId: string }) {
   const send = useSendMessage(sessionId)
+  const { data: turns = [] } = useTurns(sessionId)
+  const planActive = turns.some((turn) => turn.status === 'queued' || turn.status === 'running')
 
   return (
     <>
       <AgentConversation sessionId={sessionId} />
       <MessageComposer
-        pending={send.isPending}
+        pending={send.isPending || planActive}
         error={send.isError ? errorMessage(send.error) : null}
+        placeholder={
+          planActive
+            ? '当前计划进行中，确认、取消或等它结束后再发'
+            : '说明要怎么改，例如：去背景再水平翻转。回车发送'
+        }
         onSend={(text) => send.mutate(text)}
       />
     </>

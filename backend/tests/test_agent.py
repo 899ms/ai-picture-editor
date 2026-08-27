@@ -33,7 +33,17 @@ def fake_planner(monkeypatch):
 
 
 def tool_call(name: str, args: dict) -> AIMessage:
-    return AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": "call_1"}])
+    return tool_calls((name, args))
+
+
+def tool_calls(*pairs: tuple[str, dict]) -> AIMessage:
+    return AIMessage(
+        content="",
+        tool_calls=[
+            {"name": name, "args": args, "id": f"call_{index}"}
+            for index, (name, args) in enumerate(pairs, start=1)
+        ],
+    )
 
 
 @pytest.fixture
@@ -54,7 +64,7 @@ async def test_tool_call_is_planned_and_dispatched(signed_in: httpx.AsyncClient,
 
     turn = await send(signed_in, session_id, "换一张白底马克杯")
 
-    assert turn["status"] == "succeeded"
+    assert turn["status"] == "running"
     assert [step["tool"] for step in turn["steps"]] == ["generate_image"]
     assert turn["steps"][0]["label"] == "生成图片"
     assert turn["steps"][0]["run_id"]
@@ -135,8 +145,9 @@ async def test_results_join_the_wall_without_switching_current(
     assert updated["current_asset_id"] == session["current_asset_id"]
     assert updated["revision"] == 1
 
-    history = (await signed_in.get(f"/api/sessions/{session['id']}/history")).json()
-    assert history[0]["action"] == "generate_image"
+    turns = (await signed_in.get(f"/api/sessions/{session['id']}/messages")).json()
+    assert turns[-1]["status"] == "succeeded"
+    assert turns[-1]["steps"][0]["status"] == "succeeded"
 
 
 async def test_conversation_is_returned_in_order(signed_in: httpx.AsyncClient, fake_planner):
@@ -177,3 +188,127 @@ async def test_messages_require_authentication(client: httpx.AsyncClient):
 
     assert (await client.get(path)).status_code == 401
     assert (await client.post(path, json={"text": "你好"})).status_code == 401
+
+
+def test_cyclic_dependencies_are_rejected():
+    from app.agent.plan import PlanError, assemble
+
+    with pytest.raises(PlanError, match="循环"):
+        assemble(
+            [
+                {"id": "a", "tool": "flip_layer", "params": {}, "depends_on": ["b"]},
+                {"id": "b", "tool": "flip_layer", "params": {}, "depends_on": ["a"]},
+            ]
+        )
+
+
+def test_plan_longer_than_limit_is_rejected():
+    from app.agent.plan import MAX_STEPS, PlanError, assemble
+
+    with pytest.raises(PlanError, match="超过"):
+        assemble([{"tool": "flip_layer", "params": {}}] * (MAX_STEPS + 1))
+
+
+async def test_multi_step_plan_waits_for_confirm(signed_in: httpx.AsyncClient, fake_planner):
+    fake_planner(
+        tool_calls(
+            ("flip_layer", {"direction": "horizontal"}),
+            ("rotate_layer", {"angle": 15}),
+        )
+    )
+    session_id = (await open_session(signed_in))["id"]
+
+    turn = await send(signed_in, session_id, "水平翻转再转 15 度")
+
+    assert turn["status"] == "queued"
+    assert [step["tool"] for step in turn["steps"]] == ["flip_layer", "rotate_layer"]
+    assert turn["steps"][1]["depends_on"] == ["s1"]
+    assert all(step["run_id"] is None for step in turn["steps"])
+
+    session = (await signed_in.get(f"/api/sessions/{session_id}")).json()
+    assert session["document"]["layers"][0]["transform"]["scale_x"] == 1
+
+
+async def test_confirm_runs_dependent_steps_in_order(signed_in: httpx.AsyncClient, fake_planner):
+    fake_planner(
+        tool_calls(
+            ("flip_layer", {"direction": "horizontal"}),
+            ("rotate_layer", {"angle": 15}),
+        )
+    )
+    session_id = (await open_session(signed_in))["id"]
+    turn = await send(signed_in, session_id, "翻转并旋转")
+
+    confirmed = (
+        await signed_in.post(f"/api/sessions/{session_id}/messages/{turn['id']}/confirm")
+    ).json()
+    layer = (
+        await signed_in.get(f"/api/sessions/{session_id}")
+    ).json()["document"]["layers"][0]
+
+    assert confirmed["status"] == "succeeded"
+    assert [step["status"] for step in confirmed["steps"]] == ["succeeded", "succeeded"]
+    assert layer["transform"]["scale_x"] == -1
+    assert layer["transform"]["rotation"] == 15
+
+
+async def test_queued_step_unblocks_the_next(signed_in: httpx.AsyncClient, fake_planner):
+    fake_planner(
+        tool_calls(
+            ("remove_background", {}),
+            ("flip_layer", {"direction": "horizontal"}),
+        )
+    )
+    session = await open_session(signed_in)
+    turn = await send(signed_in, session["id"], "去背景再水平翻转")
+    started = (
+        await signed_in.post(f"/api/sessions/{session['id']}/messages/{turn['id']}/confirm")
+    ).json()
+
+    assert started["status"] == "running"
+    assert started["steps"][0]["run_id"]
+    assert started["steps"][1]["run_id"] is None
+
+    await run_tool({}, uuid.UUID(started["steps"][0]["run_id"]))
+    finished = (await signed_in.get(f"/api/sessions/{session['id']}/messages")).json()[-1]
+    updated = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
+
+    assert finished["status"] == "succeeded"
+    assert [step["status"] for step in finished["steps"]] == ["succeeded", "succeeded"]
+    assert updated["document"]["layers"][0]["transform"]["scale_x"] == -1
+
+
+async def test_cancel_drops_unstarted_steps(signed_in: httpx.AsyncClient, fake_planner):
+    fake_planner(
+        tool_calls(
+            ("flip_layer", {"direction": "horizontal"}),
+            ("rotate_layer", {"angle": 10}),
+        )
+    )
+    session_id = (await open_session(signed_in))["id"]
+    turn = await send(signed_in, session_id, "翻转再旋转")
+
+    canceled = (
+        await signed_in.post(f"/api/sessions/{session_id}/messages/{turn['id']}/cancel")
+    ).json()
+    session = (await signed_in.get(f"/api/sessions/{session_id}")).json()
+
+    assert canceled["status"] == "canceled"
+    assert [step["status"] for step in canceled["steps"]] == ["canceled", "canceled"]
+    assert session["document"]["layers"][0]["transform"]["scale_x"] == 1
+
+
+async def test_failed_step_can_be_retried(signed_in: httpx.AsyncClient, fake_planner):
+    fake_planner(tool_call("replace_region", {"prompt": "改成黑色"}))
+    session_id = (await open_session(signed_in))["id"]
+    turn = await send(signed_in, session_id, "把选区换成黑色")
+
+    await run_tool({}, uuid.UUID(turn["steps"][0]["run_id"]))
+    failed = (await signed_in.get(f"/api/sessions/{session_id}/messages")).json()[-1]
+    assert failed["status"] == "failed"
+
+    retried = (
+        await signed_in.post(f"/api/sessions/{session_id}/messages/{failed['id']}/retry")
+    ).json()
+    assert retried["status"] == "running"
+    assert retried["steps"][0]["run_id"] != failed["steps"][0]["run_id"]

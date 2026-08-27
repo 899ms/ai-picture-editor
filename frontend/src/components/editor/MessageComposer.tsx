@@ -3,10 +3,12 @@ import { useState } from 'react'
 export default function MessageComposer({
   pending,
   error,
+  placeholder = '说明要怎么改，例如：去背景、水平翻转。回车发送',
   onSend,
 }: {
   pending: boolean
   error?: string | null
+  placeholder?: string
   onSend: (text: string) => void
 }) {
   const [text, setText] = useState('')
@@ -30,7 +32,7 @@ export default function MessageComposer({
             submit()
           }
         }}
-        placeholder="说明要怎么改，例如：去背景、水平翻转。回车发送"
+        placeholder={placeholder}
         aria-label="修图指令"
         className="border-line text-ink placeholder:text-faint rounded-control focus:border-line-strong w-full resize-none border px-3 py-2 text-xs leading-relaxed outline-none transition-colors"
       />

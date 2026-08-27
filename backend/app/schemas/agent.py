@@ -24,13 +24,24 @@ class MessageIn(BaseModel):
 
 
 class PlanStepOut(BaseModel):
+    id: str
     tool: str
     label: str
+    depends_on: list[str] = []
     run_id: uuid.UUID | None = None
+    status: str = "pending"
 
     @classmethod
     def of(cls, step: dict) -> "PlanStepOut":
-        return cls(tool=step["tool"], label=label_of(step["tool"]), run_id=step.get("run_id"))
+        run_id = step.get("run_id")
+        return cls(
+            id=step.get("id") or step["tool"],
+            tool=step["tool"],
+            label=label_of(step["tool"]),
+            depends_on=list(step.get("depends_on") or []),
+            run_id=uuid.UUID(run_id) if run_id else None,
+            status=step.get("status") or ("succeeded" if run_id else "pending"),
+        )
 
 
 class TurnOut(BaseModel):

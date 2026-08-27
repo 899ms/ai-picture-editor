@@ -1,18 +1,29 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
-import type { PlanStep, Turn } from '@/api/agent'
+import type { PlanStep, StepStatus, Turn } from '@/api/agent'
 import { isTerminal } from '@/api/runs'
-import { useTurns } from '@/hooks/useAgent'
+import { usePlanActions, useTurns } from '@/hooks/useAgent'
 import { useRun } from '@/hooks/useRun'
+
+const STEP_LABEL: Record<StepStatus, string> = {
+  pending: '等待中',
+  waiting: '待确认',
+  queued: '排队中',
+  running: '进行中',
+  succeeded: '已完成',
+  failed: '未完成',
+  canceled: '已取消',
+}
 
 export default function AgentConversation({ sessionId }: { sessionId: string }) {
   const { data: turns = [], isPending } = useTurns(sessionId)
   const end = useRef<HTMLDivElement>(null)
+  const latest = turns.at(-1)
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: 'end' })
-  }, [turns.length])
+  }, [turns.length, latest?.status])
 
   if (isPending) {
     return <p className="text-faint min-h-0 flex-1 px-4 py-4 text-xs">加载中…</p>
@@ -21,7 +32,7 @@ export default function AgentConversation({ sessionId }: { sessionId: string }) 
   if (turns.length === 0) {
     return (
       <p className="text-faint min-h-0 flex-1 px-4 py-4 text-xs leading-relaxed">
-        用一句话说明要怎么改，例如「水平翻转」或「去背景」。画布变换会直接作用在当前图上。
+        用一句话说明要怎么改，例如「水平翻转」或「去背景再调亮一点」。多步计划会先列出再执行。
       </p>
     )
   }
@@ -49,17 +60,85 @@ function TurnBlock({ turn, sessionId }: { turn: Turn; sessionId: string }) {
         <p className="text-ink mr-6 text-xs leading-relaxed">{turn.reply}</p>
       )}
 
-      {turn.steps.map((step) => (
-        <StepCard key={step.run_id ?? step.tool} step={step} sessionId={sessionId} />
+      {turn.steps.map((step, index) => (
+        <StepCard key={step.id} index={index + 1} step={step} sessionId={sessionId} />
       ))}
+
+      <PlanActions turn={turn} sessionId={sessionId} />
     </div>
   )
 }
 
-function StepCard({ step, sessionId }: { step: PlanStep; sessionId: string }) {
+function PlanActions({ turn, sessionId }: { turn: Turn; sessionId: string }) {
+  const actions = usePlanActions(sessionId)
+  if (turn.status === 'queued') {
+    return (
+      <div className="mr-6 flex gap-1.5">
+        <Action disabled={actions.busy} onClick={() => actions.confirm(turn.id)}>
+          执行计划
+        </Action>
+        <Action disabled={actions.busy} onClick={() => actions.cancel(turn.id)}>
+          取消
+        </Action>
+      </div>
+    )
+  }
+  if (turn.status === 'running') {
+    return (
+      <div className="mr-6">
+        <Action disabled={actions.busy} onClick={() => actions.cancel(turn.id)}>
+          取消后续
+        </Action>
+      </div>
+    )
+  }
+  if (turn.status === 'failed') {
+    return (
+      <div className="mr-6">
+        <Action disabled={actions.busy} onClick={() => actions.retry(turn.id)}>
+          重试失败步骤
+        </Action>
+      </div>
+    )
+  }
+  return null
+}
+
+function Action({
+  children,
+  disabled,
+  onClick,
+}: {
+  children: ReactNode
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="border-line text-ink hover:bg-soft rounded-control px-2.5 py-1 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      {children}
+    </button>
+  )
+}
+
+function StepCard({
+  index,
+  step,
+  sessionId,
+}: {
+  index: number
+  step: PlanStep
+  sessionId: string
+}) {
   const queryClient = useQueryClient()
   const { status, progress, stage, error } = useRun(step.run_id)
   const watched = useRef(false)
+  const current = status ?? step.status
+  const running = current === 'queued' || current === 'running'
 
   useEffect(() => {
     if (status === 'queued' || status === 'running') watched.current = true
@@ -70,14 +149,14 @@ function StepCard({ step, sessionId }: { step: PlanStep; sessionId: string }) {
     void queryClient.invalidateQueries({ queryKey: ['session', sessionId, 'messages'] })
   }, [status, sessionId, queryClient])
 
-  const running = status === 'queued' || status === 'running'
-
   return (
     <div className="border-line mr-6 rounded-[12px] border px-3 py-2">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-ink text-xs font-medium">{step.label}</span>
+        <span className="text-ink text-xs font-medium">
+          {index}. {step.label}
+        </span>
         <span className="text-faint shrink-0 text-[10px] tabular-nums">
-          {running ? `${progress}%` : status === 'succeeded' ? '已完成' : '未完成'}
+          {running ? `${progress}%` : STEP_LABEL[current]}
         </span>
       </div>
 
