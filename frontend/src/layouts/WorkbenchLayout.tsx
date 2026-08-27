@@ -7,6 +7,7 @@ import { useAuthActions, useCurrentUser } from '@/hooks/useAuth'
 const NAV_ITEMS = [
   { to: '/create', label: '创作', icon: 'M12 4v16m8-8H4' },
   { to: '/editor', label: '编辑', icon: 'M4 20h4L20 8l-4-4L4 16v4z' },
+  { to: '/marketing', label: '导出', icon: 'M12 3v12m0 0-4-4m4 4 4-4M5 21h14' },
   { to: '/batch', label: '批量', icon: 'M4 6h16M4 12h16M4 18h10' },
 ]
 

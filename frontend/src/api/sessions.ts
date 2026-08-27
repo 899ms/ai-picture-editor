@@ -1,5 +1,5 @@
 import type { Asset } from '@/api/assets'
-import { api } from '@/api/client'
+import { ApiError, api } from '@/api/client'
 import type { Run } from '@/api/runs'
 
 export type LayerKind = 'image' | 'text' | 'shape'
@@ -99,6 +99,13 @@ export const ACTION_LABELS: Record<string, string> = {
   move_layer: '移动',
   split_layers: '拆层',
   promote_object_to_layer: '提升为图层',
+  generate_marketing: '营销图',
+  prepare_delivery_sizes: '投放尺寸',
+}
+
+export type ExportPack = {
+  blob: Blob
+  filename: string
 }
 
 export type Marker = { index: number; x: number; y: number }
@@ -131,4 +138,26 @@ export const sessionsApi = {
   select: (id: string, input: SelectInput) => api.post<Selection>(`/sessions/${id}/selection`, input),
   getSelection: (id: string) => api.get<Selection | null>(`/sessions/${id}/selection`),
   clearSelection: (id: string) => api.delete<void>(`/sessions/${id}/selection`),
+  export: (id: string, asset_ids: string[] = []) => downloadExport(id, asset_ids),
+}
+
+async function downloadExport(id: string, asset_ids: string[]): Promise<ExportPack> {
+  const response = await fetch(`/api/sessions/${id}/exports`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ asset_ids }),
+  })
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null)
+    throw new ApiError(response.status, detail?.detail ?? '打包失败')
+  }
+  return { blob: await response.blob(), filename: filenameOf(response.headers.get('Content-Disposition')) }
+}
+
+function filenameOf(header: string | null): string {
+  if (!header) return '物料.zip'
+  const encoded = /filename\*=(?:UTF-8'')?([^;]+)/i.exec(header)
+  if (encoded) return decodeURIComponent(encoded[1])
+  const plain = /filename="?([^"]+)"?/i.exec(header)
+  return plain?.[1] ?? '物料.zip'
 }

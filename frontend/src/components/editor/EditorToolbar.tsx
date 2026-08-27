@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import type { SessionDetail } from '@/api/sessions'
 import type { SessionSelection } from '@/hooks/useSelection'
@@ -281,6 +282,13 @@ export default function EditorToolbar({
           </button>
         </div>
 
+        <Link
+          to={`/marketing/${session.id}`}
+          title="导出营销图和投放尺寸"
+          className="text-muted hover:bg-soft hover:text-ink rounded-control px-2.5 py-1.5 text-xs font-medium transition-all duration-150"
+        >
+          导出
+        </Link>
         <ToolButton
           active={ui.panel === 'layers'}
           title="图层、变换和编辑记录"

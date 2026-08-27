@@ -65,6 +65,13 @@ export function usePatchSession(id: string) {
   })
 }
 
+export function useExportPack(id: string) {
+  return useMutation({
+    mutationFn: (assetIds: string[]) => sessionsApi.export(id, assetIds),
+    onError: (error) => toast(errorMessage(error), 'danger'),
+  })
+}
+
 export function useSessionTools(id: string) {
   const queryClient = useQueryClient()
   const cache = useCacheSession(id)

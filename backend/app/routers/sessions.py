@@ -2,6 +2,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import SessionDep
@@ -9,6 +10,7 @@ from app.deps import CurrentUser
 from app.models import Asset, EditSession, User
 from app.schemas.agent import MessageIn, TurnOut
 from app.schemas.asset import AssetOut
+from app.schemas.export import ExportIn
 from app.schemas.run import RunOut
 from app.schemas.session import (
     HistoryOut,
@@ -23,8 +25,9 @@ from app.schemas.session import (
 )
 from app.services import agent as agent_service
 from app.services import assets as asset_service
-from app.services import selections, sessions, tools
+from app.services import exports, selections, sessions, tools
 from app.services.agent import CannotCancel, CannotConfirm, CannotRetry, TurnNotFound
+from app.services.exports import UnknownExportAsset
 from app.services.selections import EmptySelection, StaleSelection
 from app.services.sessions import CannotRedo, CannotUndo, SessionNotFound
 from app.services.tools import InvalidParams
@@ -211,6 +214,22 @@ async def get_history(
     record = await _load(session, user, session_id)
     entries = await sessions.history_of(session, record)
     return [HistoryOut.of(entry) for entry in entries]
+
+
+@router.post("/{session_id}/exports")
+async def export_session(
+    session_id: uuid.UUID, payload: ExportIn, user: CurrentUser, session: SessionDep
+) -> Response:
+    record = await _load(session, user, session_id)
+    try:
+        packed = await exports.pack(session, record, payload.asset_ids)
+    except UnknownExportAsset as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "素材不在该会话中") from exc
+    return Response(
+        content=packed.data,
+        media_type="application/zip",
+        headers={"Content-Disposition": packed.disposition},
+    )
 
 
 @router.get("/{session_id}/messages")

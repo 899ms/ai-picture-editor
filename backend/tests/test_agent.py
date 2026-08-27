@@ -73,6 +73,18 @@ async def test_tool_call_is_planned_and_dispatched(signed_in: httpx.AsyncClient,
     assert "生成图片" in turn["reply"]
 
 
+async def test_marketing_tool_is_planned_and_dispatched(signed_in: httpx.AsyncClient, fake_planner):
+    fake_planner(tool_call("generate_marketing", {"kind": "product"}))
+    session_id = (await open_session(signed_in))["id"]
+
+    turn = await send(signed_in, session_id, "出一张商品主图")
+
+    assert turn["status"] == "running"
+    assert [step["tool"] for step in turn["steps"]] == ["generate_marketing"]
+    assert turn["steps"][0]["label"] == "营销图"
+    assert "营销图" in turn["reply"]
+
+
 async def test_plain_answer_dispatches_nothing(signed_in: httpx.AsyncClient, fake_planner):
     fake_planner(AIMessage(content="现有工具做不到这个。"))
     session_id = (await open_session(signed_in))["id"]

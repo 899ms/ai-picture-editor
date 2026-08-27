@@ -142,6 +142,35 @@ def _clip(value: float) -> int:
     return max(0, min(255, int(value)))
 
 
+def resize_to(data: bytes, width: int, height: int) -> bytes:
+    """缩放到指定像素。已是目标尺寸则只保证输出 PNG。"""
+    image = Image.open(io.BytesIO(data)).convert("RGBA")
+    if image.size != (width, height):
+        image = image.resize((width, height), Image.Resampling.LANCZOS)
+    return _png(image)
+
+
+def letterbox(
+    data: bytes,
+    width: int,
+    height: int,
+    fill: tuple[int, int, int, int] = (255, 255, 255, 255),
+) -> bytes:
+    """完整放入目标画幅，不裁切，空白居中留白。"""
+    source = Image.open(io.BytesIO(data)).convert("RGBA")
+    if source.size == (width, height):
+        return _png(source)
+    scale = min(width / source.width, height / source.height)
+    size = (
+        max(1, int(round(source.width * scale))),
+        max(1, int(round(source.height * scale))),
+    )
+    placed = source.resize(size, Image.Resampling.LANCZOS)
+    canvas = Image.new("RGBA", (width, height), fill)
+    canvas.paste(placed, ((width - size[0]) // 2, (height - size[1]) // 2), placed)
+    return _png(canvas)
+
+
 def _png(image: Image.Image) -> bytes:
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")

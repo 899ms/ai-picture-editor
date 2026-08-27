@@ -565,3 +565,25 @@ async def test_adjust_after_split_only_changes_the_target_layer(signed_in: httpx
 
     assert layers(after)["background"]["asset_id"] == layers(before)["background"]["asset_id"]
     assert layers(after)["subject"]["asset_id"] != layers(before)["subject"]["asset_id"]
+
+
+async def test_generate_marketing_stays_on_the_wall(signed_in: httpx.AsyncClient):
+    session = await open_session(signed_in)
+    updated = await apply(signed_in, session["id"], "generate_marketing", {"kind": "product"})
+    marketing = [asset for asset in updated["assets"] if asset["kind"] == "marketing"]
+
+    assert updated["current_asset_id"] == session["current_asset_id"]
+    assert updated["revision"] == 1
+    assert len(marketing) == 1
+    assert (marketing[0]["width"], marketing[0]["height"]) == (1080, 1080)
+
+
+async def test_prepare_delivery_sizes_covers_three_ratios(signed_in: httpx.AsyncClient):
+    session = await open_session(signed_in)
+    updated = await apply(signed_in, session["id"], "prepare_delivery_sizes")
+    exported = [asset for asset in updated["assets"] if asset["kind"] == "export"]
+    sizes = {(asset["width"], asset["height"]) for asset in exported}
+
+    assert updated["current_asset_id"] == session["current_asset_id"]
+    assert updated["revision"] == 1
+    assert sizes == {(1080, 1080), (1080, 1350), (1080, 1920)}
