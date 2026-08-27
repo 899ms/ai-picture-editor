@@ -139,7 +139,7 @@ export default function LayerPanel({
       {selected && (
         <Section title="变换">
           <p className="text-faint mb-2.5 text-[11px] leading-relaxed">
-            画布上可拖动未锁定的图层。滑杆拖动即预览，松手写入，可用 ⌘Z 撤销。
+            选中图层后拖角缩放、拖动画布移动。滑杆也可改，松手写入，可用 ⌘Z 撤销。
           </p>
           <LayerControls
             layer={selected}

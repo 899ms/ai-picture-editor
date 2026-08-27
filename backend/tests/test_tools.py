@@ -108,6 +108,30 @@ async def test_undo_at_start_is_rejected(signed_in: httpx.AsyncClient):
     assert response.status_code == 409
 
 
+async def test_noop_edit_does_not_append_history(signed_in: httpx.AsyncClient):
+    session = await open_session(signed_in)
+
+    body = await invoke(signed_in, session["id"], "set_layer_visible", {"visible": True})
+    entries = (await signed_in.get(f"/api/sessions/{session['id']}/history")).json()
+
+    assert body["session"]["revision"] == 1
+    assert body["session"]["can_undo"] is False
+    assert [entry["action"] for entry in entries] == ["create_session"]
+
+
+async def test_noop_edit_keeps_redo_branch(signed_in: httpx.AsyncClient):
+    session_id = (await open_session(signed_in))["id"]
+    await invoke(signed_in, session_id, "flip_layer", {"direction": "horizontal"})
+    await signed_in.post(f"/api/sessions/{session_id}/undo")
+    await invoke(signed_in, session_id, "set_layer_visible", {"visible": True})
+
+    session = (await signed_in.get(f"/api/sessions/{session_id}")).json()
+    assert session["can_redo"] is True
+
+    redone = (await signed_in.post(f"/api/sessions/{session_id}/redo")).json()
+    assert redone["document"]["layers"][0]["transform"]["scale_x"] == -1
+
+
 async def test_unknown_and_invalid_tools_are_rejected(signed_in: httpx.AsyncClient):
     session_id = (await open_session(signed_in))["id"]
 
@@ -353,7 +377,10 @@ async def test_split_layers_replaces_base_with_subject_and_background(
     again = await invoke(signed_in, session["id"], "split_layers")
     await run_tool({}, uuid.UUID(again["run"]["id"]))
     repeated = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
+    entries = (await signed_in.get(f"/api/sessions/{session['id']}/history")).json()
     assert [layer["id"] for layer in repeated["document"]["layers"]] == ids
+    assert repeated["revision"] == updated["revision"]
+    assert [entry["action"] for entry in entries] == ["split_layers", "create_session"]
 
 
 async def test_promote_object_creates_a_layer_and_is_idempotent(signed_in: httpx.AsyncClient):

@@ -13,6 +13,7 @@ from app.edits.split import (
     already_promoted,
     already_split,
     cut_object,
+    fill_background,
     mask_hash,
     punch,
     split_document,
@@ -207,6 +208,24 @@ def test_cut_object_keeps_only_masked_pixels():
     assert (x, y, width, height) == (8, 8, 12, 12)
     assert result.getpixel((2, 2))[:3] == (10, 20, 30)
     assert result.getpixel((2, 2))[3] == 255
+
+
+def test_fill_background_replaces_masked_subject():
+    from PIL import ImageDraw
+
+    image = Image.new("RGB", (80, 80), (220, 200, 180))
+    ImageDraw.Draw(image).ellipse((20, 20, 60, 60), fill=(20, 80, 200))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    mask = Image.new("L", (80, 80), 0)
+    mask.paste(255, (18, 18, 62, 62))
+
+    result = Image.open(BytesIO(fill_background(buffer.getvalue(), overlay_png(mask))))
+    center = result.getpixel((40, 40))[:3]
+
+    assert center != (20, 80, 200)
+    assert abs(center[0] - 220) < abs(center[0] - 20)
+    assert result.getpixel((4, 4))[:3] == (220, 200, 180)
 
 
 def test_punch_clears_masked_pixels_and_keeps_the_rest():

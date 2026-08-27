@@ -117,28 +117,38 @@ async def apply_edit(
 ) -> EditSession:
     """应用一次可撤销编辑：先截断重做分支，再写入文档快照。"""
     before = snapshot(record)
-    await session.execute(
-        delete(EditHistory).where(
-            EditHistory.session_id == record.id, EditHistory.seq > record.history_seq
-        )
-    )
-
+    next_current = record.current_asset_id
+    next_document = record.document
     changed = False
+
     if current is not None and current.id != record.current_asset_id:
-        record.current_asset_id = current.id
+        next_current = current.id
         if document is None:
             document = document_of(current)
         changed = True
     if document is not None:
         payload = document.model_dump(mode="json")
         if payload != record.document:
-            record.document = payload
+            next_document = payload
             changed = True
 
-    if bump_revision and changed:
+    await _attach(session, record, extra_assets)
+    if not changed:
+        await session.commit()
+        await session.refresh(record)
+        return record
+
+    await session.execute(
+        delete(EditHistory).where(
+            EditHistory.session_id == record.id, EditHistory.seq > record.history_seq
+        )
+    )
+
+    record.current_asset_id = next_current
+    record.document = next_document
+    if bump_revision:
         record.revision += 1
 
-    await _attach(session, record, extra_assets)
     record.history_seq = await _append_history(
         session,
         record,

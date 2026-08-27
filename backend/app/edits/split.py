@@ -1,7 +1,7 @@
 import hashlib
 import io
 
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageFilter
 
 from app.edits.mask import overlay_png, to_luma
 from app.edits.ocr import TextBox
@@ -47,6 +47,26 @@ def cut_object(source: bytes, mask: bytes) -> tuple[bytes, int, int, int, int]:
     cropped = image.crop(box)
     left, top, right, bottom = box
     return _png(cropped), left, top, right - left, bottom - top
+
+
+def expand_mask(mask: bytes, size: tuple[int, int], grow: int | None = None) -> bytes:
+    """外扩主体轮廓，避免背景上留下一圈主体边缘。"""
+    luma = to_luma(mask, size)
+    radius = _grow_radius(size) if grow is None else grow
+    if radius > 0:
+        luma = luma.filter(ImageFilter.MaxFilter(radius * 2 + 1))
+    return overlay_png(luma)
+
+
+def fill_background(source: bytes, mask: bytes) -> bytes:
+    """挖掉遮罩覆盖的像素，用周围颜色填上，保证背景不再含主体。"""
+    image = Image.open(io.BytesIO(source)).convert("RGB")
+    luma = to_luma(mask, image.size)
+    try:
+        filled = _cv_inpaint(image, luma)
+    except Exception:
+        filled = _blur_inpaint(image, luma)
+    return _png(filled.convert("RGBA"))
 
 
 def punch(source: bytes, mask: bytes, *, x: float = 0, y: float = 0) -> bytes:
@@ -179,6 +199,53 @@ def _text_layer(index: int, box: TextBox) -> Layer:
         text=box.text,
         font_size=max(10, box.height * 0.72),
     )
+
+
+def _grow_radius(size: tuple[int, int]) -> int:
+    return max(8, min(size) // 64)
+
+
+def _cv_inpaint(image: Image.Image, luma: Image.Image) -> Image.Image:
+    import cv2
+    import numpy as np
+
+    hole = np.where(np.array(luma) > 12, 255, 0).astype(np.uint8)
+    if not hole.any():
+        return image
+    radius = max(3, min(image.size) // 80)
+    repaired = cv2.inpaint(np.array(image), hole, radius, cv2.INPAINT_TELEA)
+    return Image.fromarray(repaired)
+
+
+def _blur_inpaint(image: Image.Image, luma: Image.Image) -> Image.Image:
+    """未安装 OpenCV 时的兜底：用边界平均色铺底，再反复模糊抹平空洞。"""
+    keep = ImageChops.invert(luma)
+    ring = ImageChops.subtract(luma.filter(ImageFilter.MaxFilter(9)), luma)
+    seed = Image.new("RGB", image.size, _mean_where(image, ring) or _mean_where(image, keep))
+    seed.paste(image, mask=keep)
+    patched = seed
+    for radius in (24, 12, 5):
+        patched = Image.composite(patched.filter(ImageFilter.GaussianBlur(radius)), patched, luma)
+    return Image.composite(patched, image, luma)
+
+
+def _mean_where(image: Image.Image, mask: Image.Image) -> tuple[int, int, int] | None:
+    pixels = image.load()
+    levels = mask.load()
+    total = [0, 0, 0]
+    count = 0
+    for y in range(image.height):
+        for x in range(image.width):
+            if levels[x, y] <= 16:
+                continue
+            red, green, blue = pixels[x, y][:3]
+            total[0] += red
+            total[1] += green
+            total[2] += blue
+            count += 1
+    if not count:
+        return None
+    return (total[0] // count, total[1] // count, total[2] // count)
 
 
 def _png(image: Image.Image) -> bytes:

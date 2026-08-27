@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { isTerminal } from '@/api/runs'
@@ -89,27 +89,40 @@ export function useSessionTools(id: string) {
     onError: (error) => toast(errorMessage(error), 'danger'),
   })
 
+  const historyLock = useRef(false)
+  const unlockHistory = () => {
+    historyLock.current = false
+  }
+
   const undo = useMutation({
     mutationFn: () => sessionsApi.undo(id),
     onSuccess: cache,
     onError: (error) => toast(errorMessage(error), 'danger'),
+    onSettled: unlockHistory,
   })
   const redo = useMutation({
     mutationFn: () => sessionsApi.redo(id),
     onSuccess: cache,
     onError: (error) => toast(errorMessage(error), 'danger'),
+    onSettled: unlockHistory,
   })
 
   const waiting = Boolean(pendingRunId && (!live.status || !isTerminal(live.status)))
   const busy = invoke.isPending || undo.isPending || redo.isPending || waiting
+
+  const runHistory = (action: () => void) => {
+    if (historyLock.current || busy) return
+    historyLock.current = true
+    action()
+  }
 
   return {
     invoke: (tool: string, params?: Record<string, unknown>) => {
       useEditorUi.getState().setConfirming(null)
       invoke.mutate({ tool, params })
     },
-    undo: () => undo.mutate(),
-    redo: () => redo.mutate(),
+    undo: () => runHistory(() => undo.mutate()),
+    redo: () => runHistory(() => redo.mutate()),
     busy,
     pendingStage: waiting ? live.stage : '',
     pendingProgress: waiting ? live.progress : 0,

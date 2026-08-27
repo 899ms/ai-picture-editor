@@ -1,5 +1,7 @@
 import asyncio
+import io
 
+from PIL import Image
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +16,8 @@ from app.edits.split import (
     already_split,
     as_background_and_object,
     cut_object,
+    expand_mask,
+    fill_background,
     mask_hash,
     promote_document,
     punch,
@@ -28,7 +32,10 @@ from app.services.selections import EmptySelection, StaleSelection
 from app.tools.base import ToolSpec
 from app.tools.context import ToolError, document_of, flatten_session, require_session
 
-_RECONSTRUCT = "移除选中物体，用周围背景自然填补，不要改变选区以外的画面。"
+_RECONSTRUCT = (
+    "画面中已有一块被修补过的区域。只把这块修补处修得和周围景物衔接自然，"
+    "不要新增人物、动物或物体，也不要改变未修补的部分。"
+)
 
 
 class SplitLayersIn(BaseModel):
@@ -46,13 +53,16 @@ async def _store(session: AsyncSession, run: ToolRun, data: bytes, kind: AssetKi
 
 
 async def _fill_hole(session: AsyncSession, run: ToolRun, source: bytes, mask: bytes) -> bytes:
+    # 先挖空再填，模型只看到没有主体的图，避免又把主体画回背景
+    hole = expand_mask(mask, Image.open(io.BytesIO(source)).size)
+    prepared = await asyncio.to_thread(fill_background, source, hole)
     edited = (
         await get_image_provider().edit(
-            EditRequest(prompt=_RECONSTRUCT, image=source),
+            EditRequest(prompt=_RECONSTRUCT, image=prepared),
             on_progress=lambda progress, stage: runs.report(session, run, progress, stage),
         )
     )[0]
-    return apply_masked(source, edited, mask)
+    return apply_masked(prepared, edited, hole)
 
 
 async def split_layers_exec(session: AsyncSession, run: ToolRun) -> dict:

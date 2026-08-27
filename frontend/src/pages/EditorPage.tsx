@@ -68,6 +68,7 @@ function Workspace({ sessionId }: { sessionId: string }) {
       const meta = event.metaKey || event.ctrlKey
       if (meta && event.key.toLowerCase() === 'z') {
         event.preventDefault()
+        if (event.repeat || tools.busy) return
         if (event.shiftKey) {
           if (session.can_redo) tools.redo()
         } else if (session.can_undo) tools.undo()
@@ -75,6 +76,7 @@ function Workspace({ sessionId }: { sessionId: string }) {
       }
       if (meta && event.key.toLowerCase() === 'y') {
         event.preventDefault()
+        if (event.repeat || tools.busy) return
         if (session.can_redo) tools.redo()
         return
       }
@@ -119,6 +121,9 @@ function Workspace({ sessionId }: { sessionId: string }) {
             onPoint={picking.busy ? undefined : picking.addPoint}
             onStroke={picking.busy ? undefined : picking.addStroke}
             onMove={(layer_id, x, y) => tools.invoke('move_layer', { layer_id, x, y })}
+            onScale={(layer_id, scale) =>
+              tools.invoke('scale_layer', { layer_id, scale_x: scale, scale_y: scale })
+            }
           />
           <CanvasHint
             text={
