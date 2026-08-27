@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:7312"
 
     s3_endpoint: str = "http://localhost:7313"
+    # 浏览器打开签名 URL 的地址；空则与 s3_endpoint 相同
+    s3_public_endpoint: str = ""
     s3_access_key: str = "retouch"
     s3_secret_key: str = "retouch_dev"
     s3_bucket: str = "retouch"

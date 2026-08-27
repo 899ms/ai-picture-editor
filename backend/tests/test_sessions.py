@@ -19,7 +19,8 @@ async def upload(client: httpx.AsyncClient, size=(320, 240), data: bytes | None 
 
 
 async def open_session(client: httpx.AsyncClient, image: bytes | None = None, **overrides) -> dict:
-    payload = {"current_asset_id": await upload(client, data=image) if image else await upload(client)} | overrides
+    asset_id = await upload(client, data=image) if image else await upload(client)
+    payload = {"current_asset_id": asset_id} | overrides
     response = await client.post("/api/sessions", json=payload)
     assert response.status_code == 201, response.text
     return response.json()
