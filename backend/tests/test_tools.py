@@ -7,7 +7,7 @@ from langchain_core.messages import AIMessage
 from app.agent import graph
 from app.tasks.tools import run_tool
 from tests.test_agent import FakePlanner
-from tests.test_sessions import open_session
+from tests.test_sessions import open_session, upload
 
 
 @pytest.fixture
@@ -383,6 +383,28 @@ async def test_split_layers_replaces_base_with_subject_and_background(
     assert [entry["action"] for entry in entries] == ["split_layers", "create_session"]
 
 
+async def test_switching_back_after_split_restores_layers(signed_in: httpx.AsyncClient):
+    session = await open_session(signed_in, image=_scene())
+    split = await invoke(signed_in, session["id"], "split_layers")
+    await run_tool({}, uuid.UUID(split["run"]["id"]))
+    after_split = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
+    other = await upload(signed_in, (400, 300))
+
+    away = (
+        await signed_in.patch(f"/api/sessions/{session['id']}", json={"current_asset_id": other})
+    ).json()
+    back = (
+        await signed_in.patch(
+            f"/api/sessions/{session['id']}",
+            json={"current_asset_id": after_split["current_asset_id"]},
+        )
+    ).json()
+
+    assert [layer["id"] for layer in away["document"]["layers"]] == ["base"]
+    assert back["document"]["layers"] == after_split["document"]["layers"]
+    assert back["current_asset_id"] == after_split["current_asset_id"]
+
+
 async def test_promote_object_creates_a_layer_and_is_idempotent(signed_in: httpx.AsyncClient):
     session = await open_session(signed_in, image=_scene())
     selected = await _select(
@@ -423,22 +445,31 @@ async def test_move_layer_shifts_position(signed_in: httpx.AsyncClient):
     assert (transform["x"], transform["y"]) == (18, -6)
 
 
-async def test_replace_background_after_split_keeps_subject(signed_in: httpx.AsyncClient):
+@pytest.mark.parametrize(
+    ("tool", "params"),
+    [
+        ("replace_background", {"prompt": "海边沙滩"}),
+        ("expand_canvas", {"ratio": "16:9"}),
+        ("upscale_image", {"scale": 2}),
+    ],
+)
+async def test_generate_after_split_stays_on_the_wall(
+    signed_in: httpx.AsyncClient, tool: str, params: dict
+):
     session = await open_session(signed_in, image=_scene())
     split = await invoke(signed_in, session["id"], "split_layers")
     await run_tool({}, uuid.UUID(split["run"]["id"]))
     before = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
-    subject = next(layer for layer in before["document"]["layers"] if layer["id"] == "subject")
 
-    body = await invoke(signed_in, session["id"], "replace_background", {"prompt": "海边沙滩"})
+    body = await invoke(signed_in, session["id"], tool, params)
     await run_tool({}, uuid.UUID(body["run"]["id"]))
     after = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
-    layers = {layer["id"]: layer for layer in after["document"]["layers"]}
+    generated = [asset for asset in after["assets"] if asset["kind"] == "generated"]
 
-    assert "subject" in layers
-    assert layers["subject"]["asset_id"] == subject["asset_id"]
-    assert layers["background"]["asset_id"] != before["document"]["layers"][0]["asset_id"]
+    assert after["document"]["layers"] == before["document"]["layers"]
+    assert after["revision"] == before["revision"]
     assert after["current_asset_id"] == before["current_asset_id"]
+    assert len(generated) == 1
 
 
 async def test_adjust_after_split_only_changes_the_target_layer(signed_in: httpx.AsyncClient):
@@ -461,4 +492,7 @@ async def test_adjust_after_split_only_changes_the_target_layer(signed_in: httpx
     layers = {layer["id"]: layer for layer in after["document"]["layers"]}
 
     assert layers["background"]["asset_id"] == background["asset_id"]
-    assert layers["subject"]["asset_id"] != before["document"]["layers"][1]["asset_id"]
+    assert layers["subject"]["asset_id"] != next(
+        layer["asset_id"] for layer in before["document"]["layers"] if layer["id"] == "subject"
+    )
+

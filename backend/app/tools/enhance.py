@@ -1,7 +1,8 @@
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.layers import BACKGROUND_LAYER_ID
+from app.edits.split import already_split
+from app.layers import BACKGROUND_LAYER_ID, LayerDocument, LayerKind
 from app.models.asset import AssetKind, AssetSource
 from app.models.tool_run import ToolRun
 from app.providers import EditRequest, get_image_provider
@@ -46,15 +47,23 @@ async def _progress(session: AsyncSession, run: ToolRun, progress: int, stage: s
     await runs.report(session, run, progress, stage)
 
 
+def _layered(document: LayerDocument) -> bool:
+    """已拆层或多于一张图像层：生成整图只上墙，不写回文档。"""
+    if already_split(document):
+        return True
+    return sum(1 for layer in document.layers if layer.kind is LayerKind.IMAGE) > 1
+
+
 async def replace_background_exec(session: AsyncSession, run: ToolRun) -> dict:
     record = await require_session(session, run)
     document = document_of(record)
     target = background_target(document)
+    wall_only = _layered(document)
     await runs.report(session, run, 15, "读取背景")
-    if target.id == BACKGROUND_LAYER_ID:
-        source = await layer_image(session, record, target)
-    else:
+    if wall_only or target.id != BACKGROUND_LAYER_ID:
         source = await flatten_session(session, record)
+    else:
+        source = await layer_image(session, record, target)
     await runs.report(session, run, 30, "生成新背景")
     images = await get_image_provider().edit(
         EditRequest(
@@ -65,7 +74,7 @@ async def replace_background_exec(session: AsyncSession, run: ToolRun) -> dict:
         ),
         on_progress=lambda progress, stage: _progress(session, run, progress, stage),
     )
-    if run.params["count"] > 1:
+    if run.params["count"] > 1 or wall_only:
         await runs.report(session, run, 95, "候选已加入图片墙，点选采用")
         return await _store(session, run, images, adopt_first=False)
     kind = AssetKind.BACKGROUND if target.id == BACKGROUND_LAYER_ID else AssetKind.GENERATED
@@ -83,11 +92,12 @@ async def expand_canvas_exec(session: AsyncSession, run: ToolRun) -> dict:
         EditRequest(prompt=run.params["prompt"], image=source, width=width, height=height),
         on_progress=lambda progress, stage: _progress(session, run, progress, stage),
     )
-    return await _store(session, run, images, adopt_first=True)
+    return await _store(session, run, images, adopt_first=not _layered(canvas))
 
 
 async def upscale_image_exec(session: AsyncSession, run: ToolRun) -> dict:
     record = await require_session(session, run)
+    canvas = document_of(record)
     await runs.report(session, run, 15, "读取画布")
     source = await flatten_session(session, record)
     await runs.report(session, run, 30, "提升分辨率")
@@ -96,14 +106,14 @@ async def upscale_image_exec(session: AsyncSession, run: ToolRun) -> dict:
         run.params["scale"],
         on_progress=lambda progress, stage: _progress(session, run, progress, stage),
     )
-    return await _store(session, run, [output], adopt_first=True)
+    return await _store(session, run, [output], adopt_first=not _layered(canvas))
 
 
 REPLACE_BACKGROUND = ToolSpec(
     name="replace_background",
     label="换背景",
     description=(
-        "按文字描述替换背景层，已拆层时主体保持不动。需要新背景的场景描述。"
+        "按文字描述替换背景。未拆层时写回画布；已拆层时拍平生成整图只进图片墙。"
         "一次可出 1 到 4 张候选；多于一张时不自动上画布，用户点选图片墙采用。"
     ),
     params=ReplaceBackgroundIn,

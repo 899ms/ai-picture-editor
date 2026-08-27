@@ -293,7 +293,35 @@ async def switch_current(session: AsyncSession, record: EditSession, asset: Asse
     """切换画布当前图。修订号递增，使旧修订号上的选区与遮罩失效。"""
     if record.current_asset_id == asset.id:
         return record
-    return await apply_edit(session, record, "switch_current", current=asset, extra_assets=[asset])
+    return await apply_edit(
+        session,
+        record,
+        "switch_current",
+        current=asset,
+        document=await _last_document_for(session, record, asset.id),
+        extra_assets=[asset],
+    )
+
+
+def _document_for(state: dict | None, asset_id: str) -> LayerDocument | None:
+    if not state or state.get("current_asset_id") != asset_id:
+        return None
+    raw = state.get("document")
+    return LayerDocument.model_validate(raw) if raw else None
+
+
+async def _last_document_for(
+    session: AsyncSession, record: EditSession, asset_id: uuid.UUID
+) -> LayerDocument | None:
+    """该图上次在画布上的文档。没有则由 apply_edit 用 document_of 新建。"""
+    target = str(asset_id)
+    for entry in await history_of(session, record):
+        found = _document_for(entry.result, target) or _document_for(
+            (entry.params or {}).get("before"), target
+        )
+        if found is not None:
+            return found
+    return None
 
 
 async def undo(session: AsyncSession, record: EditSession) -> EditSession:

@@ -3,7 +3,16 @@ from io import BytesIO
 
 from PIL import Image
 
-from app.edits.document import crop, flip, move, reorder, rotate, scale, set_opacity, set_visible
+from app.edits.document import (
+    crop,
+    flip,
+    move,
+    reorder,
+    rotate,
+    scale,
+    set_opacity,
+    set_visible,
+)
 from app.edits.mask import apply_masked, overlay_png
 from app.edits.ocr import TextBox
 from app.edits.pixels import adjust, remove_background
@@ -254,7 +263,7 @@ def test_split_document_is_background_subject_and_text():
         "text-1",
     ]
     assert already_split(document)
-    assert document.layers[2].text == "夏日"
+    assert document.layers[-1].text == "夏日"
     assert already_promoted(document, "abc")
 
 

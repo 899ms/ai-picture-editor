@@ -68,7 +68,8 @@ async def test_tool_call_is_planned_and_dispatched(signed_in: httpx.AsyncClient,
     assert [step["tool"] for step in turn["steps"]] == ["generate_image"]
     assert turn["steps"][0]["label"] == "生成图片"
     assert turn["steps"][0]["run_id"]
-    assert turn["reply"]
+    assert "没太理解" not in turn["reply"]
+    assert "生成图片" in turn["reply"]
 
 
 async def test_plain_answer_dispatches_nothing(signed_in: httpx.AsyncClient, fake_planner):
@@ -79,6 +80,33 @@ async def test_plain_answer_dispatches_nothing(signed_in: httpx.AsyncClient, fak
 
     assert turn["steps"] == []
     assert turn["reply"] == "现有工具做不到这个。"
+
+
+async def test_long_refusal_keeps_only_the_first_sentence(
+    signed_in: httpx.AsyncClient, fake_planner
+):
+    fake_planner(
+        AIMessage(
+            content="选区不一定包含老鼠。"
+            "replace_region 需要完整提示词，adjust_image 也不能局部改色。"
+        )
+    )
+    session_id = (await open_session(signed_in))["id"]
+
+    turn = await send(signed_in, session_id, "老鼠换成红色")
+
+    assert turn["steps"] == []
+    assert turn["reply"] == "选区不一定包含老鼠。"
+    assert "replace_region" not in turn["reply"]
+
+
+def test_spoken_ignores_fallback_when_plan_exists():
+    from app.agent.graph import _FALLBACK_REPLY, spoken
+
+    assert "没太理解" not in spoken("", [{"tool": "flip_layer"}])
+    assert spoken(_FALLBACK_REPLY, [{"tool": "flip_layer"}, {"tool": "rotate_layer"}]).startswith(
+        "将按以下步骤执行"
+    )
 
 
 async def test_canvas_facts_are_given_to_the_planner(signed_in: httpx.AsyncClient, fake_planner):
@@ -221,6 +249,8 @@ async def test_multi_step_plan_waits_for_confirm(signed_in: httpx.AsyncClient, f
     turn = await send(signed_in, session_id, "水平翻转再转 15 度")
 
     assert turn["status"] == "queued"
+    assert "没太理解" not in turn["reply"]
+    assert "确认后开始" in turn["reply"]
     assert [step["tool"] for step in turn["steps"]] == ["flip_layer", "rotate_layer"]
     assert turn["steps"][1]["depends_on"] == ["s1"]
     assert all(step["run_id"] is None for step in turn["steps"])

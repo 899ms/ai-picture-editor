@@ -4,7 +4,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import storage
 from app.edits.mask import overlay_png, to_luma
 from app.edits.split import EmptyCut
-from app.layers import BACKGROUND_LAYER_ID, Layer, LayerDocument, LayerKind, resolve_layer
+from app.layers import (
+    BACKGROUND_LAYER_ID,
+    Layer,
+    LayerDocument,
+    LayerKind,
+    resolve_layer,
+)
 from app.models import EditSession, ToolRun
 from app.models.asset import AssetKind, AssetSource
 from app.services import assets

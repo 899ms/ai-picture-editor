@@ -270,7 +270,11 @@ function LayerRow({
         <span className="min-w-0 flex-1">
           <span className="text-ink block truncate text-xs font-medium">{layer.name}</span>
           <span className="text-faint block truncate text-[10px]">
-            {layer.kind === 'text' ? layer.text || '文字' : layer.locked ? '已锁定' : '图像'}
+            {layer.kind === 'text'
+              ? layer.text || '文字'
+              : layer.locked
+                ? '已锁定'
+                : '图像'}
           </span>
         </span>
         <span className="text-faint shrink-0 text-[10px] tabular-nums">

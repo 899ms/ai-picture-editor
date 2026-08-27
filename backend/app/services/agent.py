@@ -80,7 +80,6 @@ async def respond(session: AsyncSession, record: EditSession, goal: str) -> Agen
         status = RunStatus.FAILED
     elif plan_mod.needs_confirm(steps):
         status = RunStatus.QUEUED
-        reply = reply or "将按以下步骤执行，确认后开始。"
     elif steps:
         status = RunStatus.RUNNING
     else:
