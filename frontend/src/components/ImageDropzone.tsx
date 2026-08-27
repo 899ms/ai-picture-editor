@@ -7,9 +7,10 @@ type Props = {
   onFile: (file: File) => void
   disabled?: boolean
   hint?: string
+  multiple?: boolean
 }
 
-export default function ImageDropzone({ onFile, disabled, hint }: Props) {
+export default function ImageDropzone({ onFile, disabled, hint, multiple }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -35,14 +36,16 @@ export default function ImageDropzone({ onFile, disabled, hint }: Props) {
         onDrop={(event) => {
           event.preventDefault()
           setDragging(false)
-          accept(event.dataTransfer.files[0])
+          const files = Array.from(event.dataTransfer.files)
+          if (multiple) files.forEach((file) => accept(file))
+          else accept(files[0])
         }}
         className={`flex w-full flex-col items-center gap-1.5 rounded-[18px] border border-dashed px-6 py-10 transition-colors disabled:opacity-50 ${
           dragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-paper hover:border-brand'
         }`}
       >
         <span className="text-ink text-sm font-medium">
-          {disabled ? '上传中…' : '拖入图片，或点击选择'}
+          {disabled ? '上传中…' : multiple ? '拖入多张图片，或点击选择' : '拖入图片，或点击选择'}
         </span>
         <span className="text-faint text-xs">{hint ?? 'JPG / PNG / WebP，单张不超过 20 MB'}</span>
       </button>
@@ -51,9 +54,12 @@ export default function ImageDropzone({ onFile, disabled, hint }: Props) {
         ref={inputRef}
         type="file"
         accept={ACCEPTED_TYPES.join(',')}
+        multiple={multiple}
         hidden
         onChange={(event) => {
-          accept(event.target.files?.[0])
+          const files = Array.from(event.target.files ?? [])
+          if (multiple) files.forEach((file) => accept(file))
+          else accept(files[0])
           event.target.value = ''
         }}
       />

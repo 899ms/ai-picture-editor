@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { isTerminal, runsApi, type GenerateInput, type Run, type RunStatus } from '@/api/runs'
 
-type Progress = Pick<Run, 'id' | 'status' | 'progress' | 'stage' | 'error'>
+type Progress = Pick<Run, 'id' | 'status' | 'progress' | 'stage' | 'error' | 'result'>
 
 const runKey = (id: string) => ['run', id]
 
@@ -55,6 +55,7 @@ export function useRun(runId: string | null) {
     error: current?.error ?? run?.error ?? null,
     prompt: run?.prompt ?? null,
     candidates: run?.candidates ?? [],
+    result: current?.result ?? run?.result ?? {},
     isLoading: snapshot.isPending,
     notFound: snapshot.isError,
   }

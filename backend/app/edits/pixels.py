@@ -150,6 +150,18 @@ def resize_to(data: bytes, width: int, height: int) -> bytes:
     return _png(image)
 
 
+def encode(data: bytes, image_format: str) -> bytes:
+    """按格式输出。JPG 铺白底，去掉透明通道。"""
+    image = Image.open(io.BytesIO(data)).convert("RGBA")
+    if image_format.lower() in {"jpg", "jpeg"}:
+        canvas = Image.new("RGB", image.size, (255, 255, 255))
+        canvas.paste(image, mask=image.getchannel("A"))
+        buffer = io.BytesIO()
+        canvas.save(buffer, format="JPEG", quality=92)
+        return buffer.getvalue()
+    return _png(image)
+
+
 def letterbox(
     data: bytes,
     width: int,

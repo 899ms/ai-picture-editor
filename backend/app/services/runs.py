@@ -20,6 +20,7 @@ def snapshot(run: ToolRun) -> dict:
         "progress": run.progress,
         "stage": run.stage,
         "error": run.error,
+        "result": run.result or {},
     }
 
 
@@ -68,9 +69,17 @@ async def start(session: AsyncSession, run: ToolRun) -> None:
     await _commit(session, run)
 
 
-async def report(session: AsyncSession, run: ToolRun, progress: int, stage: str) -> None:
+async def report(
+    session: AsyncSession,
+    run: ToolRun,
+    progress: int,
+    stage: str,
+    result: dict | None = None,
+) -> None:
     run.progress = max(run.progress, progress)
     run.stage = stage
+    if result is not None:
+        run.result = result
     await _commit(session, run)
 
 

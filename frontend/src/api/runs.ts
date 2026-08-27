@@ -14,6 +14,7 @@ export type Run = {
   error: string | null
   prompt: string | null
   candidates: Asset[]
+  result: Record<string, unknown>
 }
 
 export type GenerateInput = {

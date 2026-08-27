@@ -1,6 +1,7 @@
 """工具注册表。新增工具在此登记即可同时对界面与 Agent 生效。"""
 
 from app.tools.base import ToolSpec, UnknownTool
+from app.tools.batch import BATCH_PROCESS
 from app.tools.canvas import (
     CROP_CANVAS,
     FLIP_LAYER,
@@ -31,6 +32,7 @@ SPECS: tuple[ToolSpec, ...] = (
     PROMOTE_OBJECT,
     GENERATE_MARKETING,
     PREPARE_DELIVERY_SIZES,
+    BATCH_PROCESS,
     CROP_CANVAS,
     FLIP_LAYER,
     SET_LAYER_OPACITY,

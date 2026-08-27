@@ -26,7 +26,7 @@ class UnknownExportAsset(Exception):
 class PackedExport:
     data: bytes
     filename: str
-    manifest: ExportManifestOut
+    manifest: ExportManifestOut | None = None
 
     @property
     def disposition(self) -> str:

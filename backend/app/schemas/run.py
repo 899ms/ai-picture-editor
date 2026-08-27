@@ -42,6 +42,7 @@ class RunOut(BaseModel):
     error: str | None
     prompt: str | None = None
     candidates: list[AssetOut] = []
+    result: dict = {}
 
     @classmethod
     def of(cls, run: ToolRun, candidates: list[AssetOut] | None = None) -> "RunOut":
@@ -54,4 +55,5 @@ class RunOut(BaseModel):
             error=run.error,
             prompt=run.params.get("prompt"),
             candidates=candidates or [],
+            result=run.result or {},
         )
