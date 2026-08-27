@@ -7,7 +7,8 @@ from app.edits.document import crop, flip, reorder, rotate, scale, set_opacity
 from app.edits.pixels import adjust, remove_background
 from app.edits.render import TRANSPARENT, flatten
 from app.layers import BASE_LAYER_ID, Layer, LayerDocument, LayerKind, Transform
-from app.ratios import Ratio
+from app.providers.dashscope import _fit_edit_size
+from app.ratios import Ratio, cover_size
 
 
 def _doc(width=400, height=500, **transform) -> LayerDocument:
@@ -148,6 +149,17 @@ def test_adjust_vignette_darkens_corners():
     result = Image.open(BytesIO(adjust(data, vignette=0.8)))
 
     assert result.getpixel((2, 2))[0] < result.getpixel((32, 32))[0]
+
+
+def test_dashscope_edit_size_stays_within_model_limits():
+    assert min(_fit_edit_size(426, 240)) >= 512
+    assert max(_fit_edit_size(8000, 4000)) <= 2048
+
+
+def test_cover_size_grows_the_shorter_edge_to_the_ratio():
+    assert cover_size(320, 240, Ratio.LANDSCAPE_16_9) == (426, 240)
+    assert cover_size(320, 240, Ratio.SQUARE) == (320, 320)
+    assert cover_size(240, 320, Ratio.SQUARE) == (320, 320)
 
 
 def test_flatten_can_keep_transparent_background():

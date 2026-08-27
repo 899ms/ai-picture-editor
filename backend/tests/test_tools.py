@@ -159,3 +159,68 @@ async def test_session_tool_requires_authentication(client: httpx.AsyncClient):
     path = f"/api/sessions/{uuid.uuid4()}/tools"
     payload = {"tool": "flip_layer", "params": {"direction": "horizontal"}}
     assert (await client.post(path, json=payload)).status_code == 401
+
+
+async def test_replace_background_adopts_single_result(signed_in: httpx.AsyncClient):
+    session = await open_session(signed_in)
+    body = await invoke(
+        signed_in, session["id"], "replace_background", {"prompt": "浅木色桌面"}
+    )
+
+    await run_tool({}, uuid.UUID(body["run"]["id"]))
+    updated = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
+    current = next(
+        asset for asset in updated["assets"] if asset["id"] == updated["current_asset_id"]
+    )
+
+    assert updated["current_asset_id"] != session["current_asset_id"]
+    assert updated["revision"] == 2
+    assert (current["width"], current["height"]) == (320, 240)
+
+
+async def test_replace_background_candidates_stay_on_the_wall(signed_in: httpx.AsyncClient):
+    session = await open_session(signed_in)
+    body = await invoke(
+        signed_in,
+        session["id"],
+        "replace_background",
+        {"prompt": "浅木色桌面", "count": 2},
+    )
+
+    await run_tool({}, uuid.UUID(body["run"]["id"]))
+    updated = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
+    generated = [asset for asset in updated["assets"] if asset["kind"] == "generated"]
+
+    assert updated["current_asset_id"] == session["current_asset_id"]
+    assert updated["revision"] == 1
+    assert len(generated) == 2
+
+
+async def test_expand_canvas_grows_to_cover_ratio(signed_in: httpx.AsyncClient):
+    session = await open_session(signed_in)
+    body = await invoke(signed_in, session["id"], "expand_canvas", {"ratio": "16:9"})
+
+    await run_tool({}, uuid.UUID(body["run"]["id"]))
+    updated = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
+    current = next(
+        asset for asset in updated["assets"] if asset["id"] == updated["current_asset_id"]
+    )
+
+    assert updated["current_asset_id"] != session["current_asset_id"]
+    assert (updated["document"]["width"], updated["document"]["height"]) == (426, 240)
+    assert (current["width"], current["height"]) == (426, 240)
+
+
+async def test_upscale_image_raises_resolution(signed_in: httpx.AsyncClient):
+    session = await open_session(signed_in)
+    body = await invoke(signed_in, session["id"], "upscale_image", {"scale": 2})
+
+    await run_tool({}, uuid.UUID(body["run"]["id"]))
+    updated = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
+    current = next(
+        asset for asset in updated["assets"] if asset["id"] == updated["current_asset_id"]
+    )
+
+    assert updated["current_asset_id"] != session["current_asset_id"]
+    assert (updated["document"]["width"], updated["document"]["height"]) == (640, 480)
+    assert (current["width"], current["height"]) == (640, 480)

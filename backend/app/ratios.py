@@ -28,3 +28,11 @@ def size_of(ratio: Ratio) -> tuple[int, int]:
 def parts_of(ratio: Ratio) -> tuple[int, int]:
     left, right = ratio.value.split(":")
     return int(left), int(right)
+
+
+def cover_size(width: int, height: int, ratio: Ratio) -> tuple[int, int]:
+    """刚好包住原图的目标比例画幅，扩图时主体不必被裁切。"""
+    rw, rh = parts_of(ratio)
+    if width * rh >= height * rw:
+        return width, max(1, int(width * rh / rw))
+    return max(1, int(height * rw / rh)), height

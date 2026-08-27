@@ -9,11 +9,15 @@ from app.tools.canvas import (
     SCALE_LAYER,
     SET_LAYER_OPACITY,
 )
+from app.tools.enhance import EXPAND_CANVAS, REPLACE_BACKGROUND, UPSCALE_IMAGE
 from app.tools.generate import GENERATE_IMAGE
 from app.tools.retouch import ADJUST_IMAGE, REMOVE_BACKGROUND
 
 SPECS: tuple[ToolSpec, ...] = (
     GENERATE_IMAGE,
+    REPLACE_BACKGROUND,
+    EXPAND_CANVAS,
+    UPSCALE_IMAGE,
     REMOVE_BACKGROUND,
     ADJUST_IMAGE,
     CROP_CANVAS,

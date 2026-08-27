@@ -101,6 +101,29 @@ export default function EditorToolbar({
               去背景
             </ToolButton>
             <ToolButton
+              disabled={tools.busy}
+              active={ui.panel === 'background'}
+              title="按描述替换背景"
+              onClick={() => ui.setPanel(ui.panel === 'background' ? null : 'background')}
+            >
+              换背景
+            </ToolButton>
+            <ToolButton
+              disabled={tools.busy}
+              active={ui.panel === 'expand'}
+              title="扩展画布到新比例"
+              onClick={() => ui.setPanel(ui.panel === 'expand' ? null : 'expand')}
+            >
+              扩图
+            </ToolButton>
+            <ToolButton
+              disabled={tools.busy}
+              title="把当前画布放大到两倍"
+              onClick={() => tools.invoke('upscale_image', { scale: 2 })}
+            >
+              超分
+            </ToolButton>
+            <ToolButton
               active={ui.panel === 'adjust'}
               title="调整亮度、对比度和色彩"
               onClick={() => ui.setPanel(ui.panel === 'adjust' ? null : 'adjust')}

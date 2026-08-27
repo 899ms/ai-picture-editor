@@ -16,7 +16,7 @@ type EditorUi = {
   cropRect: CropRect | null
   compareOpen: boolean
   compareAt: number
-  panel: 'layers' | 'adjust' | null
+  panel: 'layers' | 'adjust' | 'background' | 'expand' | null
   adjustPreview: Record<string, number> | null
   layerPreview: LayerPreview | null
   selectLayer: (id: string | null) => void
@@ -26,7 +26,7 @@ type EditorUi = {
   closeCrop: () => void
   setCompareOpen: (open: boolean) => void
   setCompareAt: (value: number) => void
-  setPanel: (panel: 'layers' | 'adjust' | null) => void
+  setPanel: (panel: 'layers' | 'adjust' | 'background' | 'expand' | null) => void
   setAdjustPreview: (values: Record<string, number> | null) => void
   setLayerPreview: (preview: LayerPreview | null) => void
 }

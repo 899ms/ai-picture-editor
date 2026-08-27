@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import type { Asset } from '@/api/assets'
 import { ACTION_LABELS, type Layer, type SessionDetail } from '@/api/sessions'
+import { BackgroundForm, ExpandForm } from '@/components/editor/GenerateEdits'
 import { useSessionHistory, type SessionTools } from '@/hooks/useSessions'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { useEditorUi } from '@/stores/editorUi'
@@ -49,6 +50,18 @@ export default function LayerPanel({
         <AdjustForm
           disabled={tools.busy}
           onApply={(params) => tools.invoke('adjust_image', params)}
+        />
+      )}
+      {panel === 'background' && (
+        <BackgroundForm
+          disabled={tools.busy}
+          onApply={(params) => tools.invoke('replace_background', params)}
+        />
+      )}
+      {panel === 'expand' && (
+        <ExpandForm
+          disabled={tools.busy}
+          onApply={(params) => tools.invoke('expand_canvas', params)}
         />
       )}
 

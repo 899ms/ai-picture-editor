@@ -36,7 +36,7 @@ export default function ImageWall({
               title={
                 active
                   ? `当前画布 · ${KIND_LABELS[asset.kind]}`
-                  : `切到这张 · ${KIND_LABELS[asset.kind]} ${asset.width}×${asset.height}`
+                  : `采用这张 · ${KIND_LABELS[asset.kind]} ${asset.width}×${asset.height}`
               }
               className={`bg-canvas group relative size-16 shrink-0 overflow-hidden rounded-[10px] border-2 transition-all duration-200 disabled:cursor-default ${
                 active

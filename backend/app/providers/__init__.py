@@ -1,7 +1,7 @@
 from functools import lru_cache
 
 from app.config import get_settings
-from app.providers.base import GenerateRequest, ImageProvider, ProviderError
+from app.providers.base import EditRequest, GenerateRequest, ImageProvider, ProviderError
 from app.providers.mock import MockImageProvider
 
 
@@ -20,4 +20,10 @@ def get_image_provider() -> ImageProvider:
     raise ProviderError(f"未知的 IMAGE_PROVIDER：{name}")
 
 
-__all__ = ["GenerateRequest", "ImageProvider", "ProviderError", "get_image_provider"]
+__all__ = [
+    "EditRequest",
+    "GenerateRequest",
+    "ImageProvider",
+    "ProviderError",
+    "get_image_provider",
+]
