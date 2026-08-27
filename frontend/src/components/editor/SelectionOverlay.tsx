@@ -2,6 +2,7 @@ import { Circle, Group, Image as KonvaImage, Layer as KonvaLayer, Line, Text } f
 
 import type { LayerDocument } from '@/api/sessions'
 import { useCanvasImage } from '@/hooks/useCanvasImage'
+import { brushWidth } from '@/lib/brush'
 import type { CanvasSelection } from '@/stores/editorUi'
 
 export function SelectionOverlay({
@@ -31,8 +32,10 @@ export function SelectionOverlay({
       {draft.length > 1 && (
         <Line
           points={draft.flatMap((point) => [point.x * document.width, point.y * document.height])}
+          closed={draft.length > 2}
+          fill={draft.length > 2 ? '#5f98ad' : undefined}
           stroke="#5f98ad"
-          strokeWidth={18}
+          strokeWidth={brushWidth(document)}
           lineCap="round"
           lineJoin="round"
           opacity={0.45}

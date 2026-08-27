@@ -9,12 +9,45 @@ from app.layers import (
     Layer,
     LayerDocument,
     LayerKind,
+    LayerMissing,
     resolve_layer,
 )
 from app.models import EditSession, ToolRun
 from app.models.asset import AssetKind, AssetSource
-from app.services import assets
+from app.services import assets, selections
+from app.services.selections import EmptySelection, StaleSelection
 from app.tools.context import ToolError, document_of
+
+STALE_SELECTION = "画幅已变，选区失效，请重新选择"
+
+
+async def selection_mask(
+    session: AsyncSession, record: EditSession, mask_asset_id: str | None
+) -> bytes | None:
+    """取当前选区。返回 None 表示没有选区，由调用方决定是否改整层。"""
+    try:
+        return await selections.mask_bytes(session, record, mask_asset_id)
+    except EmptySelection:
+        return None
+    except StaleSelection as exc:
+        raise ToolError(STALE_SELECTION) from exc
+
+
+async def require_selection(
+    session: AsyncSession, record: EditSession, mask_asset_id: str | None, missing: str
+) -> bytes:
+    mask = await selection_mask(session, record, mask_asset_id)
+    if mask is None:
+        raise ToolError(missing)
+    return mask
+
+
+def resolve_target(document: LayerDocument, layer_id: str | None) -> Layer:
+    """按 id 或名字取目标图层，点名不到时报可直接展示的错误。"""
+    try:
+        return resolve_layer(document, layer_id)
+    except LayerMissing as exc:
+        raise ToolError(str(exc)) from exc
 
 
 async def layer_image(session: AsyncSession, record: EditSession, layer: Layer) -> bytes:

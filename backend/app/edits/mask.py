@@ -35,6 +35,7 @@ def rasterize_strokes(
     radius: float,
     base: Image.Image | None = None,
 ) -> Image.Image:
+    """笔画自动闭合成面积：圈住物体就选中整块，短笔画仍只得一条带子。"""
     mask = base.convert("L") if base is not None else Image.new("L", size, 0)
     draw = ImageDraw.Draw(mask)
     width, height = size
@@ -46,6 +47,9 @@ def rasterize_strokes(
         if len(points) == 1:
             _dot(draw, points[0], brush)
             continue
+        if len(points) > 2:
+            draw.polygon(points, fill=255)
+        # 轮廓带兜底：自相交的乱涂即使填不出内部，涂过的地方也一定被选中
         draw.line(points, fill=255, width=brush, joint="curve")
         for point in points:
             _dot(draw, point, brush)

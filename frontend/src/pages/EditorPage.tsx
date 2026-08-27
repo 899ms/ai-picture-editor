@@ -121,8 +121,8 @@ function Workspace({ sessionId }: { sessionId: string }) {
             onPoint={picking.busy ? undefined : picking.addPoint}
             onStroke={picking.busy ? undefined : picking.addStroke}
             onMove={(layer_id, x, y) => tools.invoke('move_layer', { layer_id, x, y })}
-            onScale={(layer_id, scale) =>
-              tools.invoke('scale_layer', { layer_id, scale_x: scale, scale_y: scale })
+            onScale={(layer_id, scale, x, y) =>
+              tools.invoke('scale_layer', { layer_id, scale_x: scale, scale_y: scale, x, y })
             }
           />
           <CanvasHint
@@ -136,7 +136,7 @@ function Workspace({ sessionId }: { sessionId: string }) {
                     : selectMode === 'point'
                       ? '点击物体建立选区，可连续点选 · Esc 退出'
                       : selectMode === 'brush'
-                        ? '按住涂抹选区 · Esc 退出'
+                        ? '按住圈出要改的区域，松手即选中圈内 · Esc 退出'
                         : null
             }
           />

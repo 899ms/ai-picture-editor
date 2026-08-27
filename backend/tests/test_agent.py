@@ -8,6 +8,7 @@ from app.agent import graph
 from app.agent.llm import planner
 from app.config import get_settings
 from app.tasks.tools import run_tool
+from tests.canvas import apply, error_of, layers, scene, select, settle
 from tests.test_sessions import open_session
 
 PROMPT = {"prompt": "浅木色桌面上的白色马克杯", "ratio": "1:1", "count": 2}
@@ -308,6 +309,51 @@ async def test_queued_step_unblocks_the_next(signed_in: httpx.AsyncClient, fake_
     assert updated["document"]["layers"][0]["transform"]["scale_x"] == -1
 
 
+async def test_two_layers_in_one_turn_share_the_same_selection(
+    signed_in: httpx.AsyncClient, fake_planner
+):
+    """选区被钉进每一步，第一步清除选区、修订号递增都不影响第二步。"""
+    fake_planner(
+        tool_calls(
+            ("replace_region", {"prompt": "改成红色", "layer_id": "subject"}),
+            ("replace_region", {"prompt": "改成蓝色", "layer_id": "background"}),
+        )
+    )
+    session = await open_session(signed_in, image=scene())
+    before = await apply(signed_in, session["id"], "split_layers")
+    await select(signed_in, session["id"], before["revision"], points=[{"x": 0.5, "y": 0.5}])
+
+    turn = await send(signed_in, session["id"], "主体改红色，背景改蓝色")
+    await signed_in.post(f"/api/sessions/{session['id']}/messages/{turn['id']}/confirm")
+    finished = await settle(signed_in, session["id"])
+    after = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
+
+    assert finished["status"] == "succeeded"
+    for layer_id in ("subject", "background"):
+        assert layers(after)[layer_id]["asset_id"] != layers(before)[layer_id]["asset_id"]
+
+
+async def test_selection_expires_when_the_plan_changes_the_canvas(
+    signed_in: httpx.AsyncClient, fake_planner
+):
+    fake_planner(
+        tool_calls(
+            ("crop_canvas", {"ratio": "1:1"}),
+            ("replace_region", {"prompt": "改成红色"}),
+        )
+    )
+    session = await open_session(signed_in)
+    await select(signed_in, session["id"], session["revision"], points=[{"x": 0.5, "y": 0.5}])
+
+    turn = await send(signed_in, session["id"], "先裁成正方形再把选区改成红色")
+    await signed_in.post(f"/api/sessions/{session['id']}/messages/{turn['id']}/confirm")
+    finished = await settle(signed_in, session["id"])
+    failed = next(step for step in finished["steps"] if step["tool"] == "replace_region")
+
+    assert finished["status"] == "failed"
+    assert "选区失效" in await error_of(signed_in, failed["run_id"])
+
+
 async def test_cancel_drops_unstarted_steps(signed_in: httpx.AsyncClient, fake_planner):
     fake_planner(
         tool_calls(
@@ -329,9 +375,9 @@ async def test_cancel_drops_unstarted_steps(signed_in: httpx.AsyncClient, fake_p
 
 
 async def test_failed_step_can_be_retried(signed_in: httpx.AsyncClient, fake_planner):
-    fake_planner(tool_call("replace_region", {"prompt": "改成黑色"}))
+    fake_planner(tool_call("replace_region", {"prompt": "改成黑色", "layer_id": "不存在的层"}))
     session_id = (await open_session(signed_in))["id"]
-    turn = await send(signed_in, session_id, "把选区换成黑色")
+    turn = await send(signed_in, session_id, "把不存在的层换成黑色")
 
     await run_tool({}, uuid.UUID(turn["steps"][0]["run_id"]))
     failed = (await signed_in.get(f"/api/sessions/{session_id}/messages")).json()[-1]

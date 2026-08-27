@@ -56,10 +56,17 @@ class LayerMissing(Exception):
 
 
 def resolve_layer(document: LayerDocument, layer_id: str | None) -> Layer:
-    """按 id 取图层；未指定时取最上层可见图像层，供界面与 Agent 共用默认目标。"""
+    """按 id 取图层，找不到时按图层名兜底，Agent 可以直接说「物体2」。
+
+    未指定时取最上层可见图像层，供界面与 Agent 共用默认目标。
+    """
     if layer_id:
+        wanted = layer_id.strip()
         for layer in document.layers:
-            if layer.id == layer_id:
+            if layer.id == wanted:
+                return layer
+        for layer in document.layers:
+            if layer.name == wanted:
                 return layer
         raise LayerMissing(f"图层不存在：{layer_id}")
 

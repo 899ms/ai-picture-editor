@@ -1,6 +1,8 @@
+import { useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { agentApi } from '@/api/agent'
+import { isTerminal } from '@/api/runs'
 
 const turnsKey = (sessionId: string) => ['session', sessionId, 'messages']
 
@@ -14,7 +16,30 @@ function useRefreshTurn(sessionId: string) {
 }
 
 export function useTurns(sessionId: string) {
-  return useQuery({ queryKey: turnsKey(sessionId), queryFn: () => agentApi.turns(sessionId) })
+  const queryClient = useQueryClient()
+  const query = useQuery({
+    queryKey: turnsKey(sessionId),
+    queryFn: () => agentApi.turns(sessionId),
+    // 第一步 SSE 结束时下一步可能还没写进计划，整轮 running 时接着拉，避免卡片停在「等待中」
+    refetchInterval: (current) =>
+      current.state.data?.at(-1)?.status === 'running' ? 800 : false,
+  })
+
+  const latest = query.data?.at(-1)?.status
+  const previous = useRef(latest)
+  useEffect(() => {
+    const wasRunning = previous.current === 'running'
+    previous.current = latest
+    if (!wasRunning || !latest || !isTerminal(latest)) return
+    void queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    void queryClient.invalidateQueries({ queryKey: ['session', sessionId, 'history'] })
+  }, [latest, sessionId, queryClient])
+
+  useEffect(() => {
+    previous.current = undefined
+  }, [sessionId])
+
+  return query
 }
 
 export function useSendMessage(sessionId: string) {

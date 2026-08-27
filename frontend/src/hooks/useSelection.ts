@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query'
 
 import { sessionsApi, type Selection } from '@/api/sessions'
 import { errorMessage } from '@/hooks/useAuth'
+import { BRUSH_RADIUS } from '@/lib/brush'
 import { toast } from '@/stores/toasts'
 import { useEditorUi, type CanvasSelection } from '@/stores/editorUi'
 
@@ -47,7 +48,7 @@ export function useSelection(sessionId: string, revision: number) {
         append: Boolean(selection && selection.revision === revision),
       }),
     addStroke: (points: { x: number; y: number }[]) =>
-      select.mutate({ revision, strokes: [points] }),
+      select.mutate({ revision, strokes: [points], radius: BRUSH_RADIUS }),
     clear: () => clear.mutate(),
   }
 }

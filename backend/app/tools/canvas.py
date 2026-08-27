@@ -17,14 +17,12 @@ from app.edits.document import (
 from app.layers import LayerMissing
 from app.models import ToolRun
 from app.ratios import Ratio
-from app.tools.base import ToolSpec
+from app.tools.base import LayerRef, ToolSpec
 from app.tools.context import ToolError, document_of, require_session
 
 _LAYER = "layer_id"
-
-
-class LayerRef(BaseModel):
-    layer_id: str | None = None
+# 拖角缩放同时移动中心，位置由界面算好回填，模型只管倍率
+_PLACEMENT = ("x", "y")
 
 
 class FlipIn(LayerRef):
@@ -43,6 +41,8 @@ class ScaleIn(LayerRef):
     factor: float | None = Field(default=None, gt=0, le=8)
     scale_x: float | None = Field(default=None, gt=0, le=8)
     scale_y: float | None = Field(default=None, gt=0, le=8)
+    x: float | None = None
+    y: float | None = None
 
     @model_validator(mode="after")
     def _need_target(self) -> "ScaleIn":
@@ -146,6 +146,8 @@ async def scale_layer(session: AsyncSession, run: ToolRun) -> dict:
             factor=params.get("factor"),
             scale_x=params.get("scale_x"),
             scale_y=params.get("scale_y"),
+            x=params.get("x"),
+            y=params.get("y"),
         ),
     )
 
@@ -196,7 +198,9 @@ async def crop_canvas(session: AsyncSession, run: ToolRun) -> dict:
     return await _apply(session, run, mutate)
 
 
-def _canvas(name: str, label: str, description: str, params, handler) -> ToolSpec:
+def _canvas(
+    name: str, label: str, description: str, params, handler, hidden: tuple[str, ...] = ()
+) -> ToolSpec:
     return ToolSpec(
         name=name,
         label=label,
@@ -205,7 +209,7 @@ def _canvas(name: str, label: str, description: str, params, handler) -> ToolSpe
         handler=handler,
         queued=False,
         session_required=True,
-        agent_hidden=(_LAYER,),
+        agent_hidden=hidden,
     )
 
 
@@ -247,9 +251,10 @@ REORDER_LAYER = _canvas(
 SCALE_LAYER = _canvas(
     "scale_layer",
     "缩放",
-    "缩放图层。factor 为相对倍率，scale_x / scale_y 为绝对值。",
+    "缩放指定图层，默认最上层图像。factor 为相对倍率，scale_x / scale_y 为绝对值。",
     ScaleIn,
     scale_layer,
+    _PLACEMENT,
 )
 ROTATE_LAYER = _canvas(
     "rotate_layer",

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type Konva from 'konva'
 import {
   Circle,
@@ -42,7 +42,7 @@ export default function CanvasStage({
   onPoint?: (x: number, y: number) => void
   onStroke?: (points: { x: number; y: number }[]) => void
   onMove?: (layerId: string, x: number, y: number) => void
-  onScale?: (layerId: string, scale: number) => void
+  onScale?: (layerId: string, scale: number, x: number, y: number) => void
 }) {
   const [containerRef, size] = useElementSize<HTMLDivElement>()
   const scale = useCanvasView((state) => state.scale)
@@ -228,6 +228,43 @@ export default function CanvasStage({
   )
 }
 
+function useLayerNodes(selectedId: string | null) {
+  const nodes = useRef(new Map<string, Konva.Node>())
+  const selectedRef = useRef(selectedId)
+  selectedRef.current = selectedId
+  const [, bump] = useState(0)
+
+  const register = useCallback((id: string, node: Konva.Node | null) => {
+    const prev = nodes.current.get(id) ?? null
+    if (prev === node) return
+    if (node) nodes.current.set(id, node)
+    else nodes.current.delete(id)
+    if (id === selectedRef.current) bump((value) => value + 1)
+  }, [])
+
+  return {
+    selectedNode: selectedId ? (nodes.current.get(selectedId) ?? null) : null,
+    register,
+  }
+}
+
+function useLayerNode(
+  id: string,
+  onRegister?: (id: string, node: Konva.Node | null) => void,
+) {
+  const nodeRef = useRef<Konva.Node | null>(null)
+  const registerRef = useRef(onRegister)
+  registerRef.current = onRegister
+  const setRef = useCallback(
+    (node: Konva.Node | null) => {
+      nodeRef.current = node
+      registerRef.current?.(id, node)
+    },
+    [id],
+  )
+  return { nodeRef, setRef }
+}
+
 function DocumentLayer({
   document,
   urls,
@@ -254,24 +291,32 @@ function DocumentLayer({
   selectedId?: string | null
   onSelect?: (id: string) => void
   onMove?: (layerId: string, x: number, y: number) => void
-  onScale?: (layerId: string, scale: number) => void
+  onScale?: (layerId: string, scale: number, x: number, y: number) => void
   onHoldStage?: (held: boolean) => void
 }) {
-  const [selectedNode, setSelectedNode] = useState<Konva.Node | null>(null)
-  const [pinnedScale, setPinnedScale] = useState<{ id: string; scale: number } | null>(null)
+  const { selectedNode, register } = useLayerNodes(selectedId)
+  const [pinned, setPinned] = useState<Pinned | null>(null)
+  const waitingStamp = useRef<string | null>(null)
   const layers = document.layers.filter((layer) => layer.visible)
   const selected = layers.find((layer) => layer.id === selectedId) ?? null
+  const stamp = selected ? transformStamp(selected) : ''
 
   useEffect(() => {
-    setSelectedNode(null)
-  }, [selectedId])
-
-  useEffect(() => {
-    if (!pinnedScale || !selected || selected.id !== pinnedScale.id) return
-    if (Math.abs(Math.abs(selected.transform.scale_x) - pinnedScale.scale) < 0.001) {
-      setPinnedScale(null)
+    if (!pinned) return
+    if (!selected || selected.id !== pinned.id) {
+      waitingStamp.current = null
+      setPinned(null)
+      return
     }
-  }, [pinnedScale, selected])
+    if (samePinned(selected, pinned)) {
+      waitingStamp.current = null
+      return
+    }
+    // 文档还是钉住前的旧值：写入未完成，继续用钉住的画面
+    if (stamp === waitingStamp.current) return
+    waitingStamp.current = null
+    setPinned(null)
+  }, [stamp, pinned, selected])
 
   return (
     <KonvaLayer
@@ -287,14 +332,14 @@ function DocumentLayer({
             key={layer.id}
             layer={layer}
             preview={layerPreview?.id === layer.id ? layerPreview : null}
-            pinnedScale={pinnedScale?.id === layer.id ? pinnedScale.scale : null}
+            pinned={pinned?.id === layer.id ? pinned : null}
             interactive={interactive}
             stageDraggable={stageDraggable}
             selected={selectedId === layer.id}
             onSelect={onSelect}
             onMove={onMove}
             onHoldStage={onHoldStage}
-            onNode={selectedId === layer.id ? setSelectedNode : undefined}
+            onRegister={register}
           />
         ) : layer.kind === 'image' ? (
           <ImageLayer
@@ -303,14 +348,14 @@ function DocumentLayer({
             url={layer.asset_id ? urls.get(layer.asset_id) : undefined}
             color={color ?? null}
             preview={layerPreview?.id === layer.id ? layerPreview : null}
-            pinnedScale={pinnedScale?.id === layer.id ? pinnedScale.scale : null}
+            pinned={pinned?.id === layer.id ? pinned : null}
             interactive={interactive}
             stageDraggable={stageDraggable}
             selected={selectedId === layer.id}
             onSelect={onSelect}
             onMove={onMove}
             onHoldStage={onHoldStage}
-            onNode={selectedId === layer.id ? setSelectedNode : undefined}
+            onRegister={register}
           />
         ) : null,
       )}
@@ -319,9 +364,10 @@ function DocumentLayer({
           node={selectedNode}
           layer={selected}
           viewScale={viewScale}
-          onScale={(layerId, scale) => {
-            setPinnedScale({ id: layerId, scale })
-            onScale?.(layerId, scale)
+          onScale={(layerId, scale, x, y) => {
+            waitingStamp.current = stamp
+            setPinned({ id: layerId, scale, x, y })
+            onScale?.(layerId, scale, x, y)
           }}
           onHoldStage={onHoldStage}
         />
@@ -333,34 +379,35 @@ function DocumentLayer({
 function TextLayer({
   layer,
   preview,
-  pinnedScale = null,
+  pinned = null,
   interactive = false,
   stageDraggable = false,
   selected = false,
   onSelect,
   onMove,
   onHoldStage,
-  onNode,
+  onRegister,
 }: {
   layer: Layer
   preview: LayerPreview | null
-  pinnedScale?: number | null
+  pinned?: Pinned | null
   interactive?: boolean
   stageDraggable?: boolean
   selected?: boolean
   onSelect?: (id: string) => void
   onMove?: (layerId: string, x: number, y: number) => void
   onHoldStage?: (held: boolean) => void
-  onNode?: (node: Konva.Node | null) => void
+  onRegister?: (id: string, node: Konva.Node | null) => void
 }) {
   const drag = useLayerInteract(layer, interactive, stageDraggable, onSelect, onMove, onHoldStage)
+  const { setRef } = useLayerNode(layer.id, onRegister)
   const { transform } = layer
-  const point = layerPoint(layer, preview, drag.drop)
-  const sized = layerScale(layer, preview, pinnedScale)
+  const point = layerPoint(layer, preview, drag.drop, pinned)
+  const sized = layerScale(layer, preview, pinned)
 
   return (
     <Text
-      ref={(node) => onNode?.(node)}
+      ref={setRef}
       text={layer.text || layer.name}
       x={point.x}
       y={point.y}
@@ -389,30 +436,30 @@ function ImageLayer({
   url,
   color,
   preview,
-  pinnedScale = null,
+  pinned = null,
   interactive = false,
   stageDraggable = false,
   selected = false,
   onSelect,
   onMove,
   onHoldStage,
-  onNode,
+  onRegister,
 }: {
   layer: Layer
   url: string | undefined
   color: AdjustPreview | null
   preview: LayerPreview | null
-  pinnedScale?: number | null
+  pinned?: Pinned | null
   interactive?: boolean
   stageDraggable?: boolean
   selected?: boolean
   onSelect?: (id: string) => void
   onMove?: (layerId: string, x: number, y: number) => void
   onHoldStage?: (held: boolean) => void
-  onNode?: (node: Konva.Node | null) => void
+  onRegister?: (id: string, node: Konva.Node | null) => void
 }) {
   const image = useCanvasImage(url)
-  const ref = useRef<Konva.Image>(null)
+  const { nodeRef, setRef } = useLayerNode(layer.id, onRegister)
   const drag = useLayerInteract(layer, interactive, stageDraggable, onSelect, onMove, onHoldStage)
   const filtered = color !== null && image?.safe === true
   // 数值不变时保持数组同一引用，平移缩放才不会白白重算滤镜
@@ -423,7 +470,7 @@ function ImageLayer({
 
   // 滤镜要求节点先缓存；缓存后的位图同时让缩放平移更省算力
   useEffect(() => {
-    const node = ref.current
+    const node = nodeRef.current
     if (!node || !image) return
     if (filtered) node.cache({ pixelRatio: PREVIEW_PIXEL_RATIO })
     else node.clearCache()
@@ -432,15 +479,12 @@ function ImageLayer({
   if (!image) return null
 
   const { transform } = layer
-  const point = layerPoint(layer, preview, drag.drop)
-  const sized = layerScale(layer, preview, pinnedScale)
+  const point = layerPoint(layer, preview, drag.drop, pinned)
+  const sized = layerScale(layer, preview, pinned)
 
   return (
     <KonvaImage
-      ref={(node) => {
-        ref.current = node
-        onNode?.(node)
-      }}
+      ref={setRef}
       image={image.element}
       x={point.x}
       y={point.y}
@@ -463,15 +507,37 @@ function ImageLayer({
 
 type Drop = { x: number; y: number }
 
-function layerPoint(layer: Layer, preview: LayerPreview | null, drop: Drop | null) {
+/** 拖角写入服务端期间钉住的缩放与位置，两者必须成对，否则画面会错位。 */
+type Pinned = { id: string; scale: number; x: number; y: number }
+
+function transformStamp(layer: Layer) {
+  const { x, y, scale_x, scale_y } = layer.transform
+  return `${layer.id}:${x},${y},${scale_x},${scale_y}`
+}
+
+function samePinned(layer: Layer, pinned: Pinned) {
+  const { x, y, scale_x } = layer.transform
+  return (
+    Math.abs(Math.abs(scale_x) - pinned.scale) < 0.001 &&
+    Math.abs(x - pinned.x) < 0.5 &&
+    Math.abs(y - pinned.y) < 0.5
+  )
+}
+
+function layerPoint(
+  layer: Layer,
+  preview: LayerPreview | null,
+  drop: Drop | null,
+  pinned: Pinned | null,
+) {
   return {
-    x: (drop?.x ?? preview?.x ?? layer.transform.x) + layer.width / 2,
-    y: (drop?.y ?? preview?.y ?? layer.transform.y) + layer.height / 2,
+    x: (drop?.x ?? pinned?.x ?? preview?.x ?? layer.transform.x) + layer.width / 2,
+    y: (drop?.y ?? pinned?.y ?? preview?.y ?? layer.transform.y) + layer.height / 2,
   }
 }
 
-function layerScale(layer: Layer, preview: LayerPreview | null, sized: number | null) {
-  const magnitude = sized ?? preview?.scale ?? Math.abs(layer.transform.scale_x)
+function layerScale(layer: Layer, preview: LayerPreview | null, pinned: Pinned | null) {
+  const magnitude = pinned?.scale ?? preview?.scale ?? Math.abs(layer.transform.scale_x)
   return {
     x: (Math.sign(layer.transform.scale_x) || 1) * magnitude,
     y: (Math.sign(layer.transform.scale_y) || 1) * magnitude,
@@ -577,7 +643,7 @@ function LayerScaler({
   node: Konva.Node
   layer: Layer
   viewScale: number
-  onScale?: (layerId: string, scale: number) => void
+  onScale?: (layerId: string, scale: number, x: number, y: number) => void
   onHoldStage?: (held: boolean) => void
 }) {
   const ref = useRef<Konva.Transformer>(null)
@@ -618,15 +684,16 @@ function LayerScaler({
       onTransformStart={() => onHoldStage?.(true)}
       onTransformEnd={() => {
         onHoldStage?.(false)
-        const next = clampLayerScale(Math.abs(node.scaleX()))
-        const direction = {
-          x: Math.sign(layer.transform.scale_x) || 1,
-          y: Math.sign(layer.transform.scale_y) || 1,
-        }
-        node.scaleX(direction.x * next)
-        node.scaleY(direction.y * next)
-        if (Math.abs(next - Math.abs(layer.transform.scale_x)) < 0.001) return
-        onScale?.(layer.id, next)
+        // 松手时不要先改节点：Transformer 已经摆好，再 setAttrs 会抖一下。
+        // 倍率与位置交给 React 一次写入，节点保持现状直到文档追上。
+        const next = clampLayerScale((Math.abs(node.scaleX()) + Math.abs(node.scaleY())) / 2)
+        const at = { x: node.x() - layer.width / 2, y: node.y() - layer.height / 2 }
+        const still =
+          Math.abs(next - Math.abs(layer.transform.scale_x)) < 0.001 &&
+          Math.abs(at.x - layer.transform.x) < 0.5 &&
+          Math.abs(at.y - layer.transform.y) < 0.5
+        if (still) return
+        onScale?.(layer.id, next, at.x, at.y)
       }}
     />
   )

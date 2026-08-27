@@ -38,8 +38,8 @@ async def describe(session: AsyncSession, record: EditSession) -> str:
     names = [_layer_name(layer) for layer in document.layers]
     parts = [
         f"画幅 {document.width}×{document.height}",
-        f"图层 {len(document.layers)} 个（{'、'.join(names)}）",
-        "未指定图层时，调色/去背/翻转/移动作用在最上层图像，换背景作用在背景层",
+        f"图层 {len(document.layers)} 个，自下而上（{'、'.join(names)}）",
+        "layer_id 填图层 id 或名字；不填则作用在选区下最上层图像，换背景作用在背景层",
         f"修订号 {record.revision}",
     ]
 
@@ -50,15 +50,16 @@ async def describe(session: AsyncSession, record: EditSession) -> str:
     selected = await selections.get(record.id, record.revision)
     if selected:
         markers = selected.get("markers") or []
-        parts.append(f"已有选区，{len(markers)} 个标点" if markers else "已有笔刷选区")
+        where = f"已有选区，{len(markers)} 个标点" if markers else "已有笔刷选区"
+        parts.append(f"{where}（选区只限定区域，不限定图层；与 layer_id 同时给出时取交集）")
     else:
-        parts.append("当前无选区")
+        parts.append("当前无选区，区域工具会作用在整个图层")
     return "；".join(parts)
 
 
 def _layer_name(layer: Layer) -> str:
     text = f"文字「{layer.text[:8]}」" if layer.kind is LayerKind.TEXT and layer.text else None
-    name = text or layer.name
+    name = f"{layer.id}={text or layer.name}"
     return name if layer.visible else f"{name}·隐藏"
 
 
@@ -69,6 +70,7 @@ async def respond(session: AsyncSession, record: EditSession, goal: str) -> Agen
 
     try:
         reply, steps = await agent.run(goal, await describe(session, record))
+        steps = await _pin_selection(session, record, steps)
     except agent.PlannerUnavailable as exc:
         error = str(exc)
     except Exception:
@@ -102,6 +104,28 @@ async def respond(session: AsyncSession, record: EditSession, goal: str) -> Agen
     if turn.status is RunStatus.RUNNING:
         await _advance(session, turn)
     return turn
+
+
+async def _pin_selection(
+    session: AsyncSession, record: EditSession, steps: list[dict]
+) -> list[dict]:
+    """把当轮选区钉进每个需要遮罩的步骤。
+
+    清除选区与修订号递增都发生在第一步之后，显式 id 才能让后续步骤共用同一块区域。
+    """
+    stored = await selections.get(record.id, record.revision)
+    mask_asset_id = (stored or {}).get("mask_asset_id")
+    if not mask_asset_id:
+        return steps
+    for step in steps:
+        params = step["params"]
+        if _wants_mask(step["tool"]) and not params.get("mask_asset_id"):
+            step["params"] = {**params, "mask_asset_id": mask_asset_id}
+    return steps
+
+
+def _wants_mask(tool: str) -> bool:
+    return "mask_asset_id" in spec_of(tool).params.model_fields
 
 
 async def confirm(session: AsyncSession, record: EditSession, turn_id: uuid.UUID) -> AgentRun:
@@ -163,7 +187,7 @@ async def continue_plan(session: AsyncSession, run: ToolRun) -> None:
             step["status"] = run.status.value
     turn.plan = steps
     _touch(turn)
-    await session.commit()
+    # 先不落库：同步的下一步（如翻转）跟这次一起提交，前端不会捞到「上一步完了、下一步还没开始」
     await _advance(session, turn)
 
 

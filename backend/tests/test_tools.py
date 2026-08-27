@@ -6,6 +6,7 @@ from langchain_core.messages import AIMessage
 
 from app.agent import graph
 from app.tasks.tools import run_tool
+from tests.canvas import apply, error_of, invoke, layers, scene, select
 from tests.test_agent import FakePlanner
 from tests.test_sessions import open_session, upload
 
@@ -14,14 +15,6 @@ from tests.test_sessions import open_session, upload
 async def signed_in(client: httpx.AsyncClient, credentials):
     await client.post("/api/auth/register", json=credentials)
     return client
-
-
-async def invoke(client: httpx.AsyncClient, session_id: str, tool: str, params: dict | None = None):
-    response = await client.post(
-        f"/api/sessions/{session_id}/tools", json={"tool": tool, "params": params or {}}
-    )
-    assert response.status_code == 202, response.text
-    return response.json()
 
 
 async def test_flip_updates_document_immediately(signed_in: httpx.AsyncClient):
@@ -264,18 +257,9 @@ async def test_upscale_image_raises_resolution(signed_in: httpx.AsyncClient):
     assert (current["width"], current["height"]) == (640, 480)
 
 
-async def _select(client: httpx.AsyncClient, session_id: str, revision: int, **payload) -> dict:
-    response = await client.post(
-        f"/api/sessions/{session_id}/selection",
-        json={"revision": revision, **payload},
-    )
-    assert response.status_code == 200, response.text
-    return response.json()
-
-
 async def test_point_selection_is_bound_to_revision(signed_in: httpx.AsyncClient):
     session = await open_session(signed_in)
-    body = await _select(
+    body = await select(
         signed_in, session["id"], session["revision"], points=[{"x": 0.5, "y": 0.5}]
     )
 
@@ -292,7 +276,7 @@ async def test_point_selection_is_bound_to_revision(signed_in: httpx.AsyncClient
 
 async def test_brush_selection_creates_a_mask(signed_in: httpx.AsyncClient):
     session = await open_session(signed_in)
-    body = await _select(
+    body = await select(
         signed_in,
         session["id"],
         session["revision"],
@@ -304,7 +288,7 @@ async def test_brush_selection_creates_a_mask(signed_in: httpx.AsyncClient):
 
 async def test_erase_region_adopts_masked_result(signed_in: httpx.AsyncClient):
     session = await open_session(signed_in)
-    selected = await _select(
+    selected = await select(
         signed_in, session["id"], session["revision"], points=[{"x": 0.5, "y": 0.5}]
     )
     body = await invoke(
@@ -322,7 +306,9 @@ async def test_erase_region_adopts_masked_result(signed_in: httpx.AsyncClient):
     assert (await signed_in.get(f"/api/sessions/{session['id']}/selection")).json() is None
 
 
-async def test_replace_region_requires_prompt_and_selection(signed_in: httpx.AsyncClient):
+async def test_replace_region_requires_a_prompt_and_honors_the_selection(
+    signed_in: httpx.AsyncClient,
+):
     session = await open_session(signed_in)
     missing = await signed_in.post(
         f"/api/sessions/{session['id']}/tools",
@@ -330,7 +316,7 @@ async def test_replace_region_requires_prompt_and_selection(signed_in: httpx.Asy
     )
     assert missing.status_code == 422
 
-    selected = await _select(
+    selected = await select(
         signed_in, session["id"], session["revision"], points=[{"x": 0.4, "y": 0.6}]
     )
     body = await invoke(
@@ -348,22 +334,10 @@ async def test_replace_region_requires_prompt_and_selection(signed_in: httpx.Asy
     assert updated["current_asset_id"] != session["current_asset_id"]
 
 
-def _scene(size=(320, 240)) -> bytes:
-    from io import BytesIO
-
-    from PIL import Image, ImageDraw
-
-    image = Image.new("RGB", size, (230, 220, 200))
-    ImageDraw.Draw(image).ellipse((80, 40, 240, 200), fill=(30, 90, 180))
-    buffer = BytesIO()
-    image.save(buffer, format="PNG")
-    return buffer.getvalue()
-
-
 async def test_split_layers_replaces_base_with_subject_and_background(
     signed_in: httpx.AsyncClient,
 ):
-    session = await open_session(signed_in, image=_scene())
+    session = await open_session(signed_in, image=scene())
     body = await invoke(signed_in, session["id"], "split_layers")
     await run_tool({}, uuid.UUID(body["run"]["id"]))
     updated = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
@@ -383,8 +357,8 @@ async def test_split_layers_replaces_base_with_subject_and_background(
     assert [entry["action"] for entry in entries] == ["split_layers", "create_session"]
 
 
-async def test_switching_back_after_split_restores_layers(signed_in: httpx.AsyncClient):
-    session = await open_session(signed_in, image=_scene())
+async def test_switching_back_after_split_restoreslayers(signed_in: httpx.AsyncClient):
+    session = await open_session(signed_in, image=scene())
     split = await invoke(signed_in, session["id"], "split_layers")
     await run_tool({}, uuid.UUID(split["run"]["id"]))
     after_split = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
@@ -406,8 +380,8 @@ async def test_switching_back_after_split_restores_layers(signed_in: httpx.Async
 
 
 async def test_promote_object_creates_a_layer_and_is_idempotent(signed_in: httpx.AsyncClient):
-    session = await open_session(signed_in, image=_scene())
-    selected = await _select(
+    session = await open_session(signed_in, image=scene())
+    selected = await select(
         signed_in, session["id"], session["revision"], points=[{"x": 0.5, "y": 0.5}]
     )
     body = await invoke(
@@ -424,7 +398,7 @@ async def test_promote_object_creates_a_layer_and_is_idempotent(signed_in: httpx
     assert any(layer_id.startswith("object-") for layer_id in ids)
     assert (await signed_in.get(f"/api/sessions/{session['id']}/selection")).json() is None
 
-    selected = await _select(
+    selected = await select(
         signed_in, updated["id"], updated["revision"], points=[{"x": 0.5, "y": 0.5}]
     )
     again = await invoke(
@@ -456,7 +430,7 @@ async def test_move_layer_shifts_position(signed_in: httpx.AsyncClient):
 async def test_generate_after_split_stays_on_the_wall(
     signed_in: httpx.AsyncClient, tool: str, params: dict
 ):
-    session = await open_session(signed_in, image=_scene())
+    session = await open_session(signed_in, image=scene())
     split = await invoke(signed_in, session["id"], "split_layers")
     await run_tool({}, uuid.UUID(split["run"]["id"]))
     before = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
@@ -472,27 +446,122 @@ async def test_generate_after_split_stays_on_the_wall(
     assert len(generated) == 1
 
 
-async def test_adjust_after_split_only_changes_the_target_layer(signed_in: httpx.AsyncClient):
-    session = await open_session(signed_in, image=_scene())
-    split = await invoke(signed_in, session["id"], "split_layers")
-    await run_tool({}, uuid.UUID(split["run"]["id"]))
-    before = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
-    background = next(
-        layer for layer in before["document"]["layers"] if layer["id"] == "background"
+async def _split_scene(client: httpx.AsyncClient) -> tuple[dict, dict]:
+    """拆好层的会话，连同拆完那一刻的图层表，供图层×选区组合断言比对。"""
+    session = await open_session(client, image=scene())
+    return session, await apply(client, session["id"], "split_layers")
+
+
+@pytest.mark.parametrize("layer_id", [None, "subject", "主体"])
+async def test_replace_region_without_selection_changes_the_whole_layer(
+    signed_in: httpx.AsyncClient, layer_id: str | None
+):
+    """没有选区就改整层：不点名时落在最上层图像，点名可以用 id 也可以用图层名。"""
+    session, before = await _split_scene(signed_in)
+    params = {"prompt": "改成红色"} | ({"layer_id": layer_id} if layer_id else {})
+
+    after = await apply(signed_in, session["id"], "replace_region", params)
+
+    assert layers(after)["subject"]["asset_id"] != layers(before)["subject"]["asset_id"]
+    assert layers(after)["background"]["asset_id"] == layers(before)["background"]["asset_id"]
+
+
+async def test_replace_region_with_layer_and_selection_takes_the_overlap(
+    signed_in: httpx.AsyncClient,
+):
+    session, before = await _split_scene(signed_in)
+    selected = await select(
+        signed_in, session["id"], before["revision"], points=[{"x": 0.5, "y": 0.5}]
     )
+
+    after = await apply(
+        signed_in,
+        session["id"],
+        "replace_region",
+        {
+            "prompt": "改成红色",
+            "layer_id": "background",
+            "mask_asset_id": selected["mask"]["id"],
+            "revision": before["revision"],
+        },
+    )
+
+    assert layers(after)["background"]["asset_id"] != layers(before)["background"]["asset_id"]
+    assert layers(after)["subject"]["asset_id"] == layers(before)["subject"]["asset_id"]
+
+
+async def test_selection_missing_the_named_layer_is_refused(signed_in: httpx.AsyncClient):
+    """选区与图层没有交集时明确报错，不静默改整层。"""
+    session = await open_session(signed_in, image=scene())
+    picked = await select(
+        signed_in, session["id"], session["revision"], points=[{"x": 0.5, "y": 0.5}]
+    )
+    updated = await apply(
+        signed_in,
+        session["id"],
+        "promote_object_to_layer",
+        {"mask_asset_id": picked["mask"]["id"], "revision": session["revision"]},
+    )
+    object_id = next(layer_id for layer_id in layers(updated) if layer_id.startswith("object-"))
+
+    elsewhere = await select(
+        signed_in, session["id"], updated["revision"], points=[{"x": 0.03, "y": 0.03}]
+    )
+    body = await invoke(
+        signed_in,
+        session["id"],
+        "replace_region",
+        {
+            "prompt": "改成红色",
+            "layer_id": object_id,
+            "mask_asset_id": elsewhere["mask"]["id"],
+            "revision": updated["revision"],
+        },
+    )
+    await run_tool({}, uuid.UUID(body["run"]["id"]))
+    after = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
+
+    assert "没有覆盖" in await error_of(signed_in, body["run"]["id"])
+    assert layers(after)[object_id]["asset_id"] == layers(updated)[object_id]["asset_id"]
+
+
+async def test_unknown_layer_name_is_refused(signed_in: httpx.AsyncClient):
+    session, _ = await _split_scene(signed_in)
 
     body = await invoke(
         signed_in,
         session["id"],
-        "adjust_image",
-        {"brightness": 0.4, "layer_id": "subject"},
+        "replace_region",
+        {"prompt": "改成红色", "layer_id": "不存在的层"},
     )
     await run_tool({}, uuid.UUID(body["run"]["id"]))
-    after = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
-    layers = {layer["id"]: layer for layer in after["document"]["layers"]}
 
-    assert layers["background"]["asset_id"] == background["asset_id"]
-    assert layers["subject"]["asset_id"] != next(
-        layer["asset_id"] for layer in before["document"]["layers"] if layer["id"] == "subject"
+    assert "图层不存在" in await error_of(signed_in, body["run"]["id"])
+
+
+async def test_corner_scale_writes_position_and_undo_restores_both(signed_in: httpx.AsyncClient):
+    session_id = (await open_session(signed_in))["id"]
+
+    body = await invoke(
+        signed_in, session_id, "scale_layer", {"scale_x": 2, "scale_y": 2, "x": -80, "y": -60}
+    )
+    scaled = body["session"]["document"]["layers"][0]["transform"]
+    assert (scaled["scale_x"], scaled["x"], scaled["y"]) == (2, -80, -60)
+
+    undone = (await signed_in.post(f"/api/sessions/{session_id}/undo")).json()
+    back = undone["document"]["layers"][0]["transform"]
+    assert (back["scale_x"], back["x"], back["y"]) == (1, 0, 0)
+
+    redone = (await signed_in.post(f"/api/sessions/{session_id}/redo")).json()
+    again = redone["document"]["layers"][0]["transform"]
+    assert (again["scale_x"], again["x"], again["y"]) == (2, -80, -60)
+
+
+async def test_adjust_after_split_only_changes_the_target_layer(signed_in: httpx.AsyncClient):
+    session, before = await _split_scene(signed_in)
+    after = await apply(
+        signed_in, session["id"], "adjust_image", {"brightness": 0.4, "layer_id": "subject"}
     )
 
+    assert layers(after)["background"]["asset_id"] == layers(before)["background"]["asset_id"]
+    assert layers(after)["subject"]["asset_id"] != layers(before)["subject"]["asset_id"]

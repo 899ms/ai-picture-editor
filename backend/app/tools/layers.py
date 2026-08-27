@@ -28,9 +28,9 @@ from app.models.asset import Asset, AssetKind, AssetSource
 from app.models.tool_run import ToolRun
 from app.providers import EditRequest, get_image_provider
 from app.services import assets, runs, selections
-from app.services.selections import EmptySelection, StaleSelection
-from app.tools.base import ToolSpec
+from app.tools.base import HIDDEN_MASK, MaskRef, ToolSpec
 from app.tools.context import ToolError, document_of, flatten_session, require_session
+from app.tools.target import require_selection
 
 _RECONSTRUCT = (
     "画面中已有一块被修补过的区域。只把这块修补处修得和周围景物衔接自然，"
@@ -42,9 +42,7 @@ class SplitLayersIn(BaseModel):
     include_text: bool = False
 
 
-class PromoteIn(BaseModel):
-    mask_asset_id: str | None = None
-    revision: int | None = None
+class PromoteIn(MaskRef):
     name: str | None = Field(default=None, max_length=40)
 
 
@@ -104,10 +102,9 @@ async def promote_object_exec(session: AsyncSession, run: ToolRun) -> dict:
     document = document_of(record)
     if run.params.get("revision") not in (None, record.revision):
         raise ToolError("选区已过期，请重新选择")
-    try:
-        mask = await selections.mask_bytes(session, record, run.params.get("mask_asset_id"))
-    except (EmptySelection, StaleSelection) as exc:
-        raise ToolError("请先点选或涂抹要拆出的物体") from exc
+    mask = await require_selection(
+        session, record, run.params.get("mask_asset_id"), "请先点选或涂抹要拆出的物体"
+    )
 
     key = mask_hash(mask)
     if already_promoted(document, key):
@@ -234,5 +231,5 @@ PROMOTE_OBJECT = ToolSpec(
     handler=promote_object_exec,
     queued=True,
     session_required=True,
-    agent_hidden=("mask_asset_id", "revision"),
+    agent_hidden=HIDDEN_MASK,
 )

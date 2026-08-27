@@ -13,7 +13,7 @@ from app.edits.document import (
     set_opacity,
     set_visible,
 )
-from app.edits.mask import apply_masked, overlay_png
+from app.edits.mask import apply_masked, overlay_png, rasterize_strokes
 from app.edits.ocr import TextBox
 from app.edits.pixels import adjust, remove_background
 from app.edits.render import TRANSPARENT, flatten
@@ -79,6 +79,15 @@ def test_absolute_scale_preserves_sign():
     scaled = scale(flipped, None, scale_y=2)
 
     assert scaled.layers[0].transform.scale_y == -2
+
+
+def test_scale_writes_position_alongside_the_factor():
+    """拖角缩放会挪动中心，位置与倍率同一次写入才能一起撤销。"""
+    scaled = scale(_doc(400, 500), None, scale_x=2, scale_y=2, x=-100, y=-125)
+
+    transform = scaled.layers[0].transform
+    assert (transform.scale_x, transform.scale_y) == (2, 2)
+    assert (transform.x, transform.y) == (-100, -125)
 
 
 def test_rotate_can_be_relative_or_absolute():
@@ -272,6 +281,22 @@ def test_mask_hash_is_stable_for_the_same_selection():
     mask.paste(255, (4, 4, 12, 12))
 
     assert mask_hash(overlay_png(mask)) == mask_hash(overlay_png(mask))
+
+
+def test_brush_loop_selects_the_enclosed_area():
+    loop = [(0.25, 0.25), (0.75, 0.25), (0.75, 0.75), (0.25, 0.75)]
+
+    mask = rasterize_strokes((200, 200), [loop], radius=0.02)
+
+    assert mask.getpixel((100, 100)) == 255
+    assert mask.getpixel((4, 4)) == 0
+
+
+def test_two_point_stroke_only_covers_the_band():
+    mask = rasterize_strokes((200, 200), [[(0.2, 0.5), (0.8, 0.5)]], radius=0.02)
+
+    assert mask.getpixel((100, 100)) == 255
+    assert mask.getpixel((100, 40)) == 0
 
 
 def test_circle_mask_covers_the_clicked_point():

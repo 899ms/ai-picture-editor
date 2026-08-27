@@ -116,6 +116,7 @@ async def _store(
 async def mask_bytes(
     session: AsyncSession, record: EditSession, mask_asset_id: str | None
 ) -> bytes:
+    """显式 id 优先，让一轮计划的多个步骤共用同一张遮罩，不受修订号递增影响。"""
     stored = await get(record.id, record.revision)
     asset_id = mask_asset_id or (stored or {}).get("mask_asset_id")
     if not asset_id:
@@ -123,6 +124,10 @@ async def mask_bytes(
     asset = await assets.get_for_user(session, record.user_id, uuid.UUID(asset_id))
     if asset is None:
         raise EmptySelection
+    canvas = record.document
+    # 画幅变了就别把旧遮罩拉伸上去，明确判为失效
+    if (asset.width, asset.height) != (canvas["width"], canvas["height"]):
+        raise StaleSelection
     return await storage.get(asset.storage_key)
 
 

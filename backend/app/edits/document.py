@@ -38,10 +38,19 @@ def scale(
     factor: float | None = None,
     scale_x: float | None = None,
     scale_y: float | None = None,
+    x: float | None = None,
+    y: float | None = None,
 ) -> LayerDocument:
-    """factor 为相对倍率；scale_x / scale_y 为绝对值，并保留已有翻转方向。"""
+    """factor 为相对倍率；scale_x / scale_y 为绝对值，并保留已有翻转方向。
+
+    拖角缩放会同时挪动中心，x/y 与倍率一并写入，一次历史即可整体撤销。
+    """
     doc = document.model_copy(deep=True)
     transform = resolve_layer(doc, layer_id).transform
+    if x is not None:
+        transform.x = x
+    if y is not None:
+        transform.y = y
     if factor is not None:
         transform.scale_x *= factor
         transform.scale_y *= factor
