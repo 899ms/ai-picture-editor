@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.layers import BACKGROUND_LAYER_ID
 from app.models.asset import AssetKind, AssetSource
 from app.models.tool_run import ToolRun
 from app.providers import EditRequest, get_image_provider
@@ -8,6 +9,7 @@ from app.ratios import Ratio, cover_size
 from app.services import assets, runs
 from app.tools.base import ToolSpec
 from app.tools.context import document_of, flatten_session, require_session
+from app.tools.target import background_target, layer_image, write_layer_image
 
 
 class ReplaceBackgroundIn(BaseModel):
@@ -46,8 +48,13 @@ async def _progress(session: AsyncSession, run: ToolRun, progress: int, stage: s
 
 async def replace_background_exec(session: AsyncSession, run: ToolRun) -> dict:
     record = await require_session(session, run)
-    await runs.report(session, run, 15, "读取画布")
-    source = await flatten_session(session, record)
+    document = document_of(record)
+    target = background_target(document)
+    await runs.report(session, run, 15, "读取背景")
+    if target.id == BACKGROUND_LAYER_ID:
+        source = await layer_image(session, record, target)
+    else:
+        source = await flatten_session(session, record)
     await runs.report(session, run, 30, "生成新背景")
     images = await get_image_provider().edit(
         EditRequest(
@@ -60,7 +67,9 @@ async def replace_background_exec(session: AsyncSession, run: ToolRun) -> dict:
     )
     if run.params["count"] > 1:
         await runs.report(session, run, 95, "候选已加入图片墙，点选采用")
-    return await _store(session, run, images, adopt_first=run.params["count"] == 1)
+        return await _store(session, run, images, adopt_first=False)
+    kind = AssetKind.BACKGROUND if target.id == BACKGROUND_LAYER_ID else AssetKind.GENERATED
+    return await write_layer_image(session, run, record, target.id, images[0], kind)
 
 
 async def expand_canvas_exec(session: AsyncSession, run: ToolRun) -> dict:
@@ -94,7 +103,7 @@ REPLACE_BACKGROUND = ToolSpec(
     name="replace_background",
     label="换背景",
     description=(
-        "保留当前画面主体，按文字描述替换背景。需要新背景的场景描述。"
+        "按文字描述替换背景层，已拆层时主体保持不动。需要新背景的场景描述。"
         "一次可出 1 到 4 张候选；多于一张时不自动上画布，用户点选图片墙采用。"
     ),
     params=ReplaceBackgroundIn,

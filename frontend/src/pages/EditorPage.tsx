@@ -118,6 +118,7 @@ function Workspace({ sessionId }: { sessionId: string }) {
             selection={picking.selection}
             onPoint={picking.busy ? undefined : picking.addPoint}
             onStroke={picking.busy ? undefined : picking.addStroke}
+            onMove={(layer_id, x, y) => tools.invoke('move_layer', { layer_id, x, y })}
           />
           <CanvasHint
             text={

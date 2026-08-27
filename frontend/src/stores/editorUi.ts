@@ -15,7 +15,14 @@ export type CanvasSelection = {
 }
 
 /** 滑杆拖动期间的即时效果，只作用于画布渲染，松手后由工具写入文档。 */
-export type LayerPreview = { id: string; opacity?: number; scale?: number; rotation?: number }
+export type LayerPreview = {
+  id: string
+  opacity?: number
+  scale?: number
+  rotation?: number
+  x?: number
+  y?: number
+}
 
 type Panel = 'layers' | 'adjust' | 'background' | 'expand' | 'replace' | null
 
@@ -29,6 +36,8 @@ type EditorUi = {
   panel: Panel
   selectMode: SelectMode | null
   selection: CanvasSelection | null
+  confirming: string | null
+  splitIncludeText: boolean
   adjustPreview: Record<string, number> | null
   layerPreview: LayerPreview | null
   selectLayer: (id: string | null) => void
@@ -42,6 +51,8 @@ type EditorUi = {
   setSelectMode: (mode: SelectMode | null) => void
   setSelection: (selection: CanvasSelection | null) => void
   dropStaleSelection: (revision: number) => void
+  setConfirming: (confirming: string | null) => void
+  setSplitIncludeText: (splitIncludeText: boolean) => void
   setAdjustPreview: (values: Record<string, number> | null) => void
   setLayerPreview: (preview: LayerPreview | null) => void
 }
@@ -81,16 +92,23 @@ export const useEditorUi = create<EditorUi>((set) => ({
   panel: null,
   selectMode: null,
   selection: null,
+  confirming: null,
+  splitIncludeText: false,
   adjustPreview: null,
   layerPreview: null,
 
-  selectLayer: (selectedLayerId) => set({ selectedLayerId, layerPreview: null }),
+  selectLayer: (selectedLayerId) =>
+    set((state) => ({
+      selectedLayerId,
+      layerPreview: state.layerPreview?.id === selectedLayerId ? state.layerPreview : null,
+    })),
 
   openCrop: (document, ratio = 'free') =>
     set({
       cropOpen: true,
       compareOpen: false,
       selectMode: null,
+      confirming: null,
       cropRatio: ratio,
       cropRect: fitCrop(document, ratio),
     }),
@@ -106,11 +124,12 @@ export const useEditorUi = create<EditorUi>((set) => ({
       compareOpen,
       cropOpen: compareOpen ? false : state.cropOpen,
       selectMode: compareOpen ? null : state.selectMode,
+      confirming: compareOpen ? null : state.confirming,
     })),
 
   setCompareAt: (compareAt) => set({ compareAt }),
 
-  setPanel: (panel) => set({ panel, adjustPreview: null, layerPreview: null }),
+  setPanel: (panel) => set({ panel, adjustPreview: null, layerPreview: null, confirming: null }),
 
   setSelectMode: (selectMode) =>
     set((state) => ({
@@ -119,6 +138,7 @@ export const useEditorUi = create<EditorUi>((set) => ({
       compareOpen: false,
       cropRect: selectMode ? null : state.cropRect,
       panel: selectMode ? null : state.panel,
+      confirming: null,
     })),
 
   setSelection: (selection) => set({ selection }),
@@ -127,6 +147,10 @@ export const useEditorUi = create<EditorUi>((set) => ({
     set((state) =>
       state.selection && state.selection.revision !== revision ? { selection: null } : state,
     ),
+
+  setConfirming: (confirming) => set({ confirming }),
+
+  setSplitIncludeText: (splitIncludeText) => set({ splitIncludeText }),
 
   setAdjustPreview: (adjustPreview) => set({ adjustPreview }),
 

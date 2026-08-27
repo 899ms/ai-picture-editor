@@ -15,6 +15,10 @@ export function useAssets(limit?: number) {
   return useQuery({ queryKey: ASSETS_KEY, queryFn: () => assetsApi.list(limit) })
 }
 
+export function useAssetLibrary(limit?: number) {
+  return useQuery({ queryKey: [...ASSETS_KEY, 'library'], queryFn: () => assetsApi.library(limit) })
+}
+
 export function useUploadAsset() {
   const queryClient = useQueryClient()
   return useMutation({

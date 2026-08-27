@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type Konva from 'konva'
 import {
   Circle,
@@ -8,6 +8,7 @@ import {
   Line,
   Rect,
   Stage,
+  Text,
   Transformer,
 } from 'react-konva'
 
@@ -31,6 +32,7 @@ export default function CanvasStage({
   selection = null,
   onPoint,
   onStroke,
+  onMove,
 }: {
   document: LayerDocument
   previous: LayerDocument | null
@@ -38,6 +40,7 @@ export default function CanvasStage({
   selection?: CanvasSelection | null
   onPoint?: (x: number, y: number) => void
   onStroke?: (points: { x: number; y: number }[]) => void
+  onMove?: (layerId: string, x: number, y: number) => void
 }) {
   const [containerRef, size] = useElementSize<HTMLDivElement>()
   const scale = useCanvasView((state) => state.scale)
@@ -59,10 +62,15 @@ export default function CanvasStage({
   const adjustPreview = useEditorUi((state) => state.adjustPreview)
   const layerPreview = useEditorUi((state) => state.layerPreview)
   const selectMode = useEditorUi((state) => state.selectMode)
+  const selectedLayerId = useEditorUi((state) => state.selectedLayerId)
+  const selectLayer = useEditorUi((state) => state.selectLayer)
   const stroke = useSelectStroke()
 
   const fitted = useRef('')
+  const [holdingStage, setHoldingStage] = useState(false)
   const selecting = Boolean(selectMode)
+  const interactive = !selecting && !cropOpen && !compareOpen
+  const stageDraggable = !cropOpen && !selecting && !holdingStage
 
   const canvasPoint = (stage: Konva.Stage | null) => {
     const pointer = stage?.getRelativePointerPosition()
@@ -104,7 +112,7 @@ export default function CanvasStage({
         y={y}
         scaleX={scale}
         scaleY={scale}
-        draggable={!cropOpen && !selecting}
+        draggable={stageDraggable}
         onMouseDown={(event) => {
           if (selectMode !== 'brush') return
           const point = canvasPoint(event.target.getStage())
@@ -180,6 +188,12 @@ export default function CanvasStage({
             urls={urls}
             color={color}
             layerPreview={layerPreview}
+            interactive={interactive}
+            stageDraggable={stageDraggable}
+            selectedId={selectedLayerId}
+            onSelect={selectLayer}
+            onMove={onMove}
+            onHoldStage={setHoldingStage}
           />
         )}
 
@@ -216,32 +230,112 @@ function DocumentLayer({
   color,
   layerPreview,
   clip,
+  interactive = false,
+  stageDraggable = false,
+  selectedId = null,
+  onSelect,
+  onMove,
+  onHoldStage,
 }: {
   document: LayerDocument
   urls: Map<string, string>
   color?: AdjustPreview | null
   layerPreview?: LayerPreview | null
   clip?: { x: number; y: number; width: number; height: number }
+  interactive?: boolean
+  stageDraggable?: boolean
+  selectedId?: string | null
+  onSelect?: (id: string) => void
+  onMove?: (layerId: string, x: number, y: number) => void
+  onHoldStage?: (held: boolean) => void
 }) {
-  const images = document.layers.filter((layer) => layer.visible && layer.kind === 'image')
+  const layers = document.layers.filter((layer) => layer.visible)
   return (
     <KonvaLayer
-      listening={false}
+      listening={interactive}
       clipX={clip?.x ?? 0}
       clipY={clip?.y ?? 0}
       clipWidth={clip?.width ?? document.width}
       clipHeight={clip?.height ?? document.height}
     >
-      {images.map((layer) => (
-        <ImageLayer
-          key={layer.id}
-          layer={layer}
-          url={layer.asset_id ? urls.get(layer.asset_id) : undefined}
-          color={color ?? null}
-          preview={layerPreview?.id === layer.id ? layerPreview : null}
-        />
-      ))}
+      {layers.map((layer) =>
+        layer.kind === 'text' ? (
+          <TextLayer
+            key={layer.id}
+            layer={layer}
+            preview={layerPreview?.id === layer.id ? layerPreview : null}
+            interactive={interactive}
+            stageDraggable={stageDraggable}
+            selected={selectedId === layer.id}
+            onSelect={onSelect}
+            onMove={onMove}
+            onHoldStage={onHoldStage}
+          />
+        ) : layer.kind === 'image' ? (
+          <ImageLayer
+            key={layer.id}
+            layer={layer}
+            url={layer.asset_id ? urls.get(layer.asset_id) : undefined}
+            color={color ?? null}
+            preview={layerPreview?.id === layer.id ? layerPreview : null}
+            interactive={interactive}
+            stageDraggable={stageDraggable}
+            selected={selectedId === layer.id}
+            onSelect={onSelect}
+            onMove={onMove}
+            onHoldStage={onHoldStage}
+          />
+        ) : null,
+      )}
     </KonvaLayer>
+  )
+}
+
+function TextLayer({
+  layer,
+  preview,
+  interactive = false,
+  stageDraggable = false,
+  selected = false,
+  onSelect,
+  onMove,
+  onHoldStage,
+}: {
+  layer: Layer
+  preview: LayerPreview | null
+  interactive?: boolean
+  stageDraggable?: boolean
+  selected?: boolean
+  onSelect?: (id: string) => void
+  onMove?: (layerId: string, x: number, y: number) => void
+  onHoldStage?: (held: boolean) => void
+}) {
+  const drag = useLayerDrag(layer, interactive, stageDraggable, onSelect, onMove, onHoldStage)
+  const { transform } = layer
+  const point = layerPoint(layer, preview, drag.drop)
+
+  return (
+    <Text
+      text={layer.text || layer.name}
+      x={point.x}
+      y={point.y}
+      offsetX={layer.width / 2}
+      offsetY={layer.height / 2}
+      width={layer.width}
+      height={layer.height}
+      fontSize={layer.font_size ?? Math.max(12, layer.height * 0.72)}
+      fill={layer.fill ?? '#141414'}
+      align="center"
+      verticalAlign="middle"
+      scaleX={preview?.scale ?? transform.scale_x}
+      scaleY={preview?.scale ?? transform.scale_y}
+      rotation={preview?.rotation ?? transform.rotation}
+      opacity={preview?.opacity ?? layer.opacity}
+      {...drag.handlers}
+      stroke={selected && interactive ? '#5f98ad' : undefined}
+      strokeWidth={selected && interactive ? 2 : 0}
+      strokeScaleEnabled={false}
+    />
   )
 }
 
@@ -250,14 +344,27 @@ function ImageLayer({
   url,
   color,
   preview,
+  interactive = false,
+  stageDraggable = false,
+  selected = false,
+  onSelect,
+  onMove,
+  onHoldStage,
 }: {
   layer: Layer
   url: string | undefined
   color: AdjustPreview | null
   preview: LayerPreview | null
+  interactive?: boolean
+  stageDraggable?: boolean
+  selected?: boolean
+  onSelect?: (id: string) => void
+  onMove?: (layerId: string, x: number, y: number) => void
+  onHoldStage?: (held: boolean) => void
 }) {
   const image = useCanvasImage(url)
   const ref = useRef<Konva.Image>(null)
+  const drag = useLayerDrag(layer, interactive, stageDraggable, onSelect, onMove, onHoldStage)
   const filtered = color !== null && image?.safe === true
   // 数值不变时保持数组同一引用，平移缩放才不会白白重算滤镜
   const filters = useMemo(
@@ -281,13 +388,14 @@ function ImageLayer({
     x: Math.sign(transform.scale_x) || 1,
     y: Math.sign(transform.scale_y) || 1,
   }
+  const point = layerPoint(layer, preview, drag.drop)
 
   return (
     <KonvaImage
       ref={ref}
       image={image.element}
-      x={transform.x + layer.width / 2}
-      y={transform.y + layer.height / 2}
+      x={point.x}
+      y={point.y}
       offsetX={layer.width / 2}
       offsetY={layer.height / 2}
       width={layer.width}
@@ -297,8 +405,103 @@ function ImageLayer({
       rotation={preview?.rotation ?? transform.rotation}
       opacity={preview?.opacity ?? layer.opacity}
       filters={filters}
+      {...drag.handlers}
+      stroke={selected && interactive ? '#5f98ad' : undefined}
+      strokeWidth={selected && interactive ? 2 : 0}
+      strokeScaleEnabled={false}
     />
   )
+}
+
+type Drop = { x: number; y: number }
+
+function layerPoint(layer: Layer, preview: LayerPreview | null, drop: Drop | null) {
+  return {
+    x: (drop?.x ?? preview?.x ?? layer.transform.x) + layer.width / 2,
+    y: (drop?.y ?? preview?.y ?? layer.transform.y) + layer.height / 2,
+  }
+}
+
+function useLayerDrag(
+  layer: Layer,
+  interactive: boolean,
+  stageDraggable: boolean,
+  onSelect?: (id: string) => void,
+  onMove?: (layerId: string, x: number, y: number) => void,
+  onHoldStage?: (held: boolean) => void,
+) {
+  const [drop, setDrop] = useState<Drop | null>(null)
+  const dragged = useRef(false)
+  const movable = interactive && !layer.locked
+
+  useEffect(() => {
+    if (!drop) return
+    if (Math.abs(layer.transform.x - drop.x) < 0.5 && Math.abs(layer.transform.y - drop.y) < 0.5) {
+      setDrop(null)
+    }
+  }, [layer.transform.x, layer.transform.y, drop])
+
+  const restoreStage = (node: Konva.Node) => {
+    node.getStage()?.draggable(stageDraggable)
+  }
+
+  const pick = () => {
+    if (dragged.current) {
+      dragged.current = false
+      return
+    }
+    onSelect?.(layer.id)
+  }
+
+  return {
+    drop,
+    handlers: {
+      listening: interactive,
+      draggable: movable,
+      dragDistance: 2,
+      onMouseDown: (event: Konva.KonvaEventObject<MouseEvent>) => {
+        event.cancelBubble = true
+        if (movable) event.target.getStage()?.draggable(false)
+      },
+      onMouseUp: (event: Konva.KonvaEventObject<MouseEvent>) => {
+        if (!dragged.current) restoreStage(event.target)
+      },
+      onMouseEnter: (event: Konva.KonvaEventObject<MouseEvent>) => {
+        const container = event.target.getStage()?.container()
+        if (container && movable) container.style.cursor = 'move'
+      },
+      onMouseLeave: (event: Konva.KonvaEventObject<MouseEvent>) => {
+        const container = event.target.getStage()?.container()
+        if (container) container.style.cursor = ''
+      },
+      onClick: pick,
+      onTap: pick,
+      onDragStart: (event: Konva.KonvaEventObject<DragEvent>) => {
+        event.cancelBubble = true
+        dragged.current = true
+        event.target.getStage()?.draggable(false)
+        onHoldStage?.(true)
+      },
+      onDragMove: (event: Konva.KonvaEventObject<DragEvent>) => {
+        event.cancelBubble = true
+      },
+      onDragEnd: (event: Konva.KonvaEventObject<DragEvent>) => {
+        event.cancelBubble = true
+        restoreStage(event.target)
+        onHoldStage?.(false)
+        const next = {
+          x: event.target.x() - layer.width / 2,
+          y: event.target.y() - layer.height / 2,
+        }
+        onSelect?.(layer.id)
+        if (Math.abs(next.x - layer.transform.x) < 0.5 && Math.abs(next.y - layer.transform.y) < 0.5) {
+          return
+        }
+        setDrop(next)
+        onMove?.(layer.id, next.x, next.y)
+      },
+    },
+  }
 }
 
 /** 对比分割线随画布一起缩放平移，手柄与线宽保持屏幕尺寸不变。 */

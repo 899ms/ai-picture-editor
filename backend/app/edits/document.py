@@ -25,6 +25,12 @@ def set_opacity(document: LayerDocument, layer_id: str | None, opacity: float) -
     return doc
 
 
+def set_visible(document: LayerDocument, layer_id: str | None, visible: bool) -> LayerDocument:
+    doc = document.model_copy(deep=True)
+    resolve_layer(doc, layer_id).visible = visible
+    return doc
+
+
 def scale(
     document: LayerDocument,
     layer_id: str | None,
@@ -57,6 +63,23 @@ def rotate(
     doc = document.model_copy(deep=True)
     transform = resolve_layer(doc, layer_id).transform
     transform.rotation = transform.rotation + angle if angle is not None else rotation or 0
+    return doc
+
+
+def move(
+    document: LayerDocument,
+    layer_id: str | None,
+    *,
+    x: float | None = None,
+    y: float | None = None,
+    dx: float | None = None,
+    dy: float | None = None,
+) -> LayerDocument:
+    """移动图层左上角。x/y 为绝对坐标，dx/dy 为相对位移。"""
+    doc = document.model_copy(deep=True)
+    transform = resolve_layer(doc, layer_id).transform
+    transform.x = x if x is not None else transform.x + (dx or 0)
+    transform.y = y if y is not None else transform.y + (dy or 0)
     return doc
 
 
@@ -137,8 +160,10 @@ __all__ = [
     "EditError",
     "crop",
     "flip",
+    "move",
     "reorder",
     "rotate",
     "scale",
     "set_opacity",
+    "set_visible",
 ]

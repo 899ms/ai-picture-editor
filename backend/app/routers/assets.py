@@ -6,8 +6,9 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from app.db import SessionDep
 from app.deps import CurrentUser
 from app.models.asset import AssetKind, AssetSource
-from app.schemas.asset import AssetOut
+from app.schemas.asset import AssetOut, LibraryGroupOut
 from app.services import assets as asset_service
+from app.services.assets import ORPHAN_TITLE
 from app.services.images import MAX_FILE_BYTES, ImageRejected, probe
 
 router = APIRouter(prefix="/assets", tags=["assets"])
@@ -42,6 +43,25 @@ async def list_assets(
 ) -> list[AssetOut]:
     records = await asset_service.list_for_user(session, user.id, limit)
     return [AssetOut.of(asset) for asset in records]
+
+
+@router.get("/library")
+async def list_library(
+    user: CurrentUser,
+    session: SessionDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> list[LibraryGroupOut]:
+    groups = await asset_service.library_for_user(session, user.id, limit)
+    return [
+        LibraryGroupOut(
+            session_id=record.id if record else None,
+            title=record.title if record else ORPHAN_TITLE,
+            updated_at=record.updated_at if record else cover.created_at,
+            cover=AssetOut.of(cover),
+            assets=[AssetOut.of(asset) for asset in assets],
+        )
+        for record, cover, assets in groups
+    ]
 
 
 @router.get("/{asset_id}")

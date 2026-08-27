@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     planner_model: str = "qwen-plus"
     # auto：有 rembg 用 rembg，否则四角抠图；测试强制 corner 以免下载模型
     matting_provider: str = "auto"
+    # auto：有 rapidocr 则识别文字层；none 跳过；测试强制 none
+    ocr_provider: str = "auto"
 
     @property
     def is_production(self) -> bool:

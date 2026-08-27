@@ -34,3 +34,11 @@ class AssetOut(BaseModel):
             created_at=asset.created_at,
             url=storage.signed_url(asset.storage_key),
         )
+
+
+class LibraryGroupOut(BaseModel):
+    session_id: uuid.UUID | None
+    title: str
+    updated_at: datetime
+    cover: AssetOut
+    assets: list[AssetOut]

@@ -25,7 +25,13 @@ export default function ImageWall({
   return (
     <div className="border-line bg-paper shrink-0 border-t">
       <div className="scrollbar-slim flex scroll-px-4 items-center gap-2 overflow-x-auto px-4 py-3">
-        {assets.map((asset) => {
+        {assets
+          .filter((asset) => asset.kind !== 'mask')
+          .filter(
+            (asset) =>
+              asset.id === currentId || (asset.kind !== 'subject' && asset.kind !== 'background'),
+          )
+          .map((asset) => {
           const active = asset.id === currentId
           return (
             <button

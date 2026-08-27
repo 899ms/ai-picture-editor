@@ -2,23 +2,28 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.edits.mask import apply_masked
-from app.models.asset import AssetKind, AssetSource
+from app.edits.split import EmptyCut
+from app.layers import resolve_layer
+from app.models.asset import AssetKind
 from app.models.tool_run import ToolRun
 from app.providers import EditRequest, get_image_provider
-from app.services import assets, runs, selections
+from app.services import runs, selections
 from app.services.selections import EmptySelection, StaleSelection
 from app.tools.base import ToolSpec
-from app.tools.context import ToolError, flatten_session, require_session
+from app.tools.context import ToolError, document_of, require_session
+from app.tools.target import layer_image, layer_under_mask, mask_for_layer, write_layer_image
 
 
 class RegionIn(BaseModel):
     prompt: str = Field(default="", max_length=500)
+    layer_id: str | None = None
     mask_asset_id: str | None = None
     revision: int | None = None
 
 
 class ReplaceRegionIn(BaseModel):
     prompt: str = Field(min_length=1, max_length=500)
+    layer_id: str | None = None
     mask_asset_id: str | None = None
     revision: int | None = None
 
@@ -32,8 +37,19 @@ async def _edit_region(session: AsyncSession, run: ToolRun, prompt: str) -> dict
     except (EmptySelection, StaleSelection) as exc:
         raise ToolError("请先点选或涂抹要修改的区域") from exc
 
+    document = document_of(record)
+    layer = (
+        resolve_layer(document, run.params["layer_id"])
+        if run.params.get("layer_id")
+        else layer_under_mask(document, mask)
+    )
+    try:
+        local_mask = mask_for_layer(mask, layer, (document.width, document.height))
+    except EmptyCut as exc:
+        raise ToolError("选区没有覆盖到该图层") from exc
+
     await runs.report(session, run, 20, "读取选区")
-    source = await flatten_session(session, record)
+    source = await layer_image(session, record, layer)
     await runs.report(session, run, 40, "局部生成")
     edited = (
         await get_image_provider().edit(
@@ -42,12 +58,9 @@ async def _edit_region(session: AsyncSession, run: ToolRun, prompt: str) -> dict
         )
     )[0]
     await runs.report(session, run, 85, "合并选区")
-    output = apply_masked(source, edited, mask)
-    asset = await assets.create_from_bytes(
-        session, run.user_id, output, AssetKind.GENERATED, AssetSource.TOOL
-    )
+    output = apply_masked(source, edited, local_mask)
     await selections.clear(record.id)
-    return {"asset_ids": [str(asset.id)], "adopt_asset_id": str(asset.id)}
+    return await write_layer_image(session, run, record, layer.id, output, AssetKind.GENERATED)
 
 
 async def erase_region_exec(session: AsyncSession, run: ToolRun) -> dict:
@@ -65,6 +78,8 @@ async def replace_region_exec(session: AsyncSession, run: ToolRun) -> dict:
     return await _edit_region(session, run, prompt)
 
 
+_HIDDEN = ("layer_id", "mask_asset_id", "revision")
+
 ERASE_REGION = ToolSpec(
     name="erase_region",
     label="局部消除",
@@ -73,7 +88,7 @@ ERASE_REGION = ToolSpec(
     handler=erase_region_exec,
     queued=True,
     session_required=True,
-    agent_hidden=("mask_asset_id", "revision"),
+    agent_hidden=_HIDDEN,
 )
 
 REPLACE_REGION = ToolSpec(
@@ -84,5 +99,5 @@ REPLACE_REGION = ToolSpec(
     handler=replace_region_exec,
     queued=True,
     session_required=True,
-    agent_hidden=("mask_asset_id", "revision"),
+    agent_hidden=_HIDDEN,
 )

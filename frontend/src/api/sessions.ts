@@ -23,6 +23,10 @@ export type Layer = {
   opacity: number
   visible: boolean
   locked: boolean
+  source_hash?: string | null
+  text?: string | null
+  font_size?: number
+  fill?: string
 }
 
 export type LayerDocument = {
@@ -88,9 +92,13 @@ export const ACTION_LABELS: Record<string, string> = {
   crop_canvas: '裁剪',
   flip_layer: '翻转',
   set_layer_opacity: '透明度',
+  set_layer_visible: '显隐',
   reorder_layer: '图层顺序',
   scale_layer: '缩放',
   rotate_layer: '旋转',
+  move_layer: '移动',
+  split_layers: '拆层',
+  promote_object_to_layer: '提升为图层',
 }
 
 export type Marker = { index: number; x: number; y: number }

@@ -1,17 +1,17 @@
 import { useNavigate } from 'react-router-dom'
 
-import AssetCard from '@/components/AssetCard'
+import AssetLibrary from '@/components/AssetLibrary'
 import GenerateForm from '@/components/GenerateForm'
 import ImageDropzone from '@/components/ImageDropzone'
 import { errorMessage } from '@/hooks/useAuth'
-import { useAssets, useUploadAsset } from '@/hooks/useAssets'
+import { useAssetLibrary, useUploadAsset } from '@/hooks/useAssets'
 import { useGenerate } from '@/hooks/useRun'
 import { useCreateSession } from '@/hooks/useSessions'
 import { readPromptDraft, savePromptDraft } from '@/lib/promptDraft'
 
 export default function CreatePage() {
   const navigate = useNavigate()
-  const { data: assets = [], isPending } = useAssets()
+  const { data: groups = [], isPending } = useAssetLibrary()
   const upload = useUploadAsset()
   const generate = useGenerate()
   const createSession = useCreateSession()
@@ -58,14 +58,14 @@ export default function CreatePage() {
 
         {isPending ? (
           <p className="text-faint text-sm">加载中…</p>
-        ) : assets.length === 0 ? (
+        ) : groups.length === 0 ? (
           <p className="text-faint text-sm">还没有素材，先描述画面或上传一张图片。</p>
         ) : (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {assets.map((asset) => (
-              <AssetCard key={asset.id} asset={asset} onSelect={() => openEditor(asset.id)} />
-            ))}
-          </div>
+          <AssetLibrary
+            groups={groups}
+            onOpenSession={(sessionId) => navigate(`/editor/${sessionId}`)}
+            onOpenAsset={openEditor}
+          />
         )}
       </section>
     </div>

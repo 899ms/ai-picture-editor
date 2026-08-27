@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import agent
-from app.layers import LayerDocument
+from app.layers import Layer, LayerDocument, LayerKind
 from app.models import AgentRun, EditSession
 from app.models.tool_run import RunStatus
 from app.services import assets, selections
@@ -15,9 +15,11 @@ logger = logging.getLogger(__name__)
 async def describe(session: AsyncSession, record: EditSession) -> str:
     """给规划模型的画布摘要，只给决策必需的事实。"""
     document = LayerDocument.model_validate(record.document)
+    names = [_layer_name(layer) for layer in document.layers]
     parts = [
         f"画幅 {document.width}×{document.height}",
-        f"图层 {len(document.layers)} 个",
+        f"图层 {len(document.layers)} 个（{'、'.join(names)}）",
+        "未指定图层时，调色/去背/翻转/移动作用在最上层图像，换背景作用在背景层",
         f"修订号 {record.revision}",
     ]
 
@@ -32,6 +34,11 @@ async def describe(session: AsyncSession, record: EditSession) -> str:
     else:
         parts.append("当前无选区")
     return "；".join(parts)
+
+
+def _layer_name(layer: Layer) -> str:
+    name = f"文字「{layer.text[:8]}」" if layer.kind is LayerKind.TEXT and layer.text else layer.name
+    return name if layer.visible else f"{name}·隐藏"
 
 
 async def respond(session: AsyncSession, record: EditSession, goal: str) -> AgentRun:

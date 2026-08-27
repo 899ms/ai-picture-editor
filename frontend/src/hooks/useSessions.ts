@@ -11,6 +11,7 @@ import {
 import { errorMessage } from '@/hooks/useAuth'
 import { useRun } from '@/hooks/useRun'
 import { toast } from '@/stores/toasts'
+import { useEditorUi } from '@/stores/editorUi'
 
 const LIST_KEY = ['sessions']
 const detailKey = (id: string) => ['session', id]
@@ -103,7 +104,10 @@ export function useSessionTools(id: string) {
   const busy = invoke.isPending || undo.isPending || redo.isPending || waiting
 
   return {
-    invoke: (tool: string, params?: Record<string, unknown>) => invoke.mutate({ tool, params }),
+    invoke: (tool: string, params?: Record<string, unknown>) => {
+      useEditorUi.getState().setConfirming(null)
+      invoke.mutate({ tool, params })
+    },
     undo: () => undo.mutate(),
     redo: () => redo.mutate(),
     busy,

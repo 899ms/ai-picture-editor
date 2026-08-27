@@ -1,6 +1,7 @@
 from app.edits.document import (
     crop,
     flip,
+    move,
     reorder,
     rotate,
     scale,
@@ -16,6 +17,7 @@ __all__ = [
     "crop",
     "flatten",
     "flip",
+    "move",
     "remove_background",
     "reorder",
     "rotate",

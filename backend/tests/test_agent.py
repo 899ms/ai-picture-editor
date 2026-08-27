@@ -80,6 +80,7 @@ async def test_canvas_facts_are_given_to_the_planner(signed_in: httpx.AsyncClien
     system = fake.messages[0].content
     assert "画幅 320×240" in system
     assert "修订号 1" in system
+    assert "底图" in system
     assert "当前无选区" in system
 
 

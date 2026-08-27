@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field
 from app.models import Asset
 
 BASE_LAYER_ID = "base"
+BACKGROUND_LAYER_ID = "background"
+SUBJECT_LAYER_ID = "subject"
 
 
 class LayerKind(enum.StrEnum):
@@ -37,6 +39,10 @@ class Layer(BaseModel):
     opacity: float = 1
     visible: bool = True
     locked: bool = False
+    source_hash: str | None = None
+    text: str | None = None
+    font_size: float = 24
+    fill: str = "#141414"
 
 
 class LayerDocument(BaseModel):

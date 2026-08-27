@@ -3,7 +3,17 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.edits.document import EditError, crop, flip, reorder, rotate, scale, set_opacity
+from app.edits.document import (
+    EditError,
+    crop,
+    flip,
+    move,
+    reorder,
+    rotate,
+    scale,
+    set_opacity,
+    set_visible,
+)
 from app.layers import LayerMissing
 from app.models import ToolRun
 from app.ratios import Ratio
@@ -23,6 +33,10 @@ class FlipIn(LayerRef):
 
 class OpacityIn(LayerRef):
     opacity: float = Field(ge=0, le=1)
+
+
+class VisibleIn(LayerRef):
+    visible: bool
 
 
 class ScaleIn(LayerRef):
@@ -50,6 +64,19 @@ class RotateIn(LayerRef):
 
 class ReorderIn(LayerRef):
     place: Literal["top", "bottom", "up", "down"]
+
+
+class MoveIn(LayerRef):
+    x: float | None = None
+    y: float | None = None
+    dx: float | None = None
+    dy: float | None = None
+
+    @model_validator(mode="after")
+    def _need_delta(self) -> "MoveIn":
+        if self.x is None and self.y is None and self.dx is None and self.dy is None:
+            raise ValueError("需要坐标或位移")
+        return self
 
 
 class CropRect(BaseModel):
@@ -101,6 +128,14 @@ async def set_layer_opacity(session: AsyncSession, run: ToolRun) -> dict:
     )
 
 
+async def set_layer_visible(session: AsyncSession, run: ToolRun) -> dict:
+    return await _apply(
+        session,
+        run,
+        lambda doc, params: set_visible(doc, params.get(_LAYER), params["visible"]),
+    )
+
+
 async def scale_layer(session: AsyncSession, run: ToolRun) -> dict:
     return await _apply(
         session,
@@ -124,6 +159,21 @@ async def rotate_layer(session: AsyncSession, run: ToolRun) -> dict:
             params.get(_LAYER),
             angle=params.get("angle"),
             rotation=params.get("rotation"),
+        ),
+    )
+
+
+async def move_layer(session: AsyncSession, run: ToolRun) -> dict:
+    return await _apply(
+        session,
+        run,
+        lambda doc, params: move(
+            doc,
+            params.get(_LAYER),
+            x=params.get("x"),
+            y=params.get("y"),
+            dx=params.get("dx"),
+            dy=params.get("dy"),
         ),
     )
 
@@ -180,6 +230,13 @@ SET_LAYER_OPACITY = _canvas(
     OpacityIn,
     set_layer_opacity,
 )
+SET_LAYER_VISIBLE = _canvas(
+    "set_layer_visible",
+    "显隐",
+    "显示或隐藏指定图层，不删除内容。",
+    VisibleIn,
+    set_layer_visible,
+)
 REORDER_LAYER = _canvas(
     "reorder_layer",
     "图层顺序",
@@ -200,4 +257,11 @@ ROTATE_LAYER = _canvas(
     "旋转图层。angle 为相对角度，rotation 为绝对角度，顺时针为正。",
     RotateIn,
     rotate_layer,
+)
+MOVE_LAYER = _canvas(
+    "move_layer",
+    "移动",
+    "移动指定图层。x/y 为绝对坐标，dx/dy 为相对像素位移。默认最上层图像。",
+    MoveIn,
+    move_layer,
 )

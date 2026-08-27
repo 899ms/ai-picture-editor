@@ -43,6 +43,14 @@ def corner_matting():
     settings.matting_provider = original
 
 
+@pytest.fixture(scope="session", autouse=True)
+def skip_ocr():
+    settings = get_settings()
+    original, settings.ocr_provider = settings.ocr_provider, "none"
+    yield
+    settings.ocr_provider = original
+
+
 def _test_redis_url(url: str) -> str:
     head, _, tail = url.rpartition("/")
     return f"{head}/{TEST_REDIS_DB}" if tail.isdigit() else f"{url.rstrip('/')}/{TEST_REDIS_DB}"

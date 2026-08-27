@@ -76,6 +76,7 @@ export default function EditorToolbar({
                 tools.invoke('erase_region', {
                   mask_asset_id: picking.selection?.maskId,
                   revision: session.revision,
+                  layer_id: ui.selectedLayerId,
                 })
               }
             >
@@ -89,6 +90,20 @@ export default function EditorToolbar({
             >
               替换
             </ToolButton>
+            <ConfirmTool
+              id="promote_object_to_layer"
+              disabled={tools.busy || picking.busy || !picking.selection}
+              title={picking.selection ? '把选区提升为独立图层' : '先点选或涂抹'}
+              confirm="确认成层"
+              onConfirm={() =>
+                tools.invoke('promote_object_to_layer', {
+                  mask_asset_id: picking.selection?.maskId,
+                  revision: session.revision,
+                })
+              }
+            >
+              成层
+            </ConfirmTool>
             <ToolButton
               disabled={!picking.selection || picking.busy}
               title="清除当前选区"
@@ -132,21 +147,31 @@ export default function EditorToolbar({
             <ToolButton
               disabled={tools.busy}
               title="左右翻转当前图层"
-              onClick={() => tools.invoke('flip_layer', { direction: 'horizontal' })}
+              onClick={() =>
+                tools.invoke('flip_layer', {
+                  direction: 'horizontal',
+                  layer_id: ui.selectedLayerId,
+                })
+              }
             >
               水平翻转
             </ToolButton>
             <ToolButton
               disabled={tools.busy}
               title="上下翻转当前图层"
-              onClick={() => tools.invoke('flip_layer', { direction: 'vertical' })}
+              onClick={() =>
+                tools.invoke('flip_layer', {
+                  direction: 'vertical',
+                  layer_id: ui.selectedLayerId,
+                })
+              }
             >
               垂直翻转
             </ToolButton>
             <ToolButton
               disabled={tools.busy}
               title="抠出主体，背景变透明"
-              onClick={() => tools.invoke('remove_background')}
+              onClick={() => tools.invoke('remove_background', { layer_id: ui.selectedLayerId })}
             >
               去背景
             </ToolButton>
@@ -180,6 +205,15 @@ export default function EditorToolbar({
             >
               调色
             </ToolButton>
+            <ConfirmTool
+              id="split_layers"
+              disabled={tools.busy}
+              title="拆成背景和主体，文字需在图层面板勾选"
+              confirm="确认拆层"
+              onConfirm={() => tools.invoke('split_layers', { include_text: ui.splitIncludeText })}
+            >
+              拆层
+            </ConfirmTool>
             <ToolButton
               disabled={tools.busy}
               title="点选物体建立选区"
@@ -256,6 +290,44 @@ export default function EditorToolbar({
         </ToolButton>
       </div>
     </header>
+  )
+}
+
+function ConfirmTool({
+  id,
+  children,
+  title,
+  confirm,
+  disabled,
+  onConfirm,
+}: {
+  id: string
+  children: React.ReactNode
+  title: string
+  confirm: string
+  disabled?: boolean
+  onConfirm: () => void
+}) {
+  const confirming = useEditorUi((state) => state.confirming)
+  const setConfirming = useEditorUi((state) => state.setConfirming)
+  const armed = confirming === id
+
+  return (
+    <ToolButton
+      active={armed}
+      disabled={disabled}
+      title={armed ? confirm : title}
+      onClick={() => {
+        if (armed) {
+          setConfirming(null)
+          onConfirm()
+          return
+        }
+        setConfirming(id)
+      }}
+    >
+      {armed ? confirm : children}
+    </ToolButton>
   )
 }
 

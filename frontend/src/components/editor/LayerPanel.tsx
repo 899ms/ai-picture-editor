@@ -41,6 +41,8 @@ export default function LayerPanel({
   const selectLayer = useEditorUi((state) => state.selectLayer)
   const panel = useEditorUi((state) => state.panel)
   const selection = useEditorUi((state) => state.selection)
+  const includeText = useEditorUi((state) => state.splitIncludeText)
+  const setIncludeText = useEditorUi((state) => state.setSplitIncludeText)
   const selected =
     session.document.layers.find((layer) => layer.id === selectedLayerId) ??
     session.document.layers.at(-1)
@@ -50,7 +52,9 @@ export default function LayerPanel({
       {panel === 'adjust' && (
         <AdjustForm
           disabled={tools.busy}
-          onApply={(params) => tools.invoke('adjust_image', params)}
+          onApply={(params) =>
+            tools.invoke('adjust_image', { ...params, layer_id: selectedLayerId })
+          }
         />
       )}
       {panel === 'background' && (
@@ -73,19 +77,60 @@ export default function LayerPanel({
               ...params,
               mask_asset_id: selection?.maskId,
               revision: session.revision,
+              layer_id: selectedLayerId,
             })
           }
         />
       )}
 
       <Section title="图层">
+        <label className="text-muted mb-2 flex items-center gap-1.5 text-[11px]">
+          <input
+            type="checkbox"
+            checked={includeText}
+            disabled={tools.busy}
+            onChange={(event) => setIncludeText(event.target.checked)}
+          />
+          同时拆出文字
+        </label>
+        <div className="mb-2.5 flex gap-1">
+          <LayerAction
+            id="split_layers"
+            disabled={tools.busy}
+            label="拆层"
+            confirm="确认拆层"
+            title={includeText ? '拆成背景、主体和文字' : '拆成背景和主体'}
+            onConfirm={() => tools.invoke('split_layers', { include_text: includeText })}
+          />
+          <LayerAction
+            id="promote_object_to_layer"
+            disabled={tools.busy || !selection}
+            label="成层"
+            confirm="确认成层"
+            title={selection ? '把选区提升为独立图层' : '先点选或涂抹'}
+            onConfirm={() =>
+              tools.invoke('promote_object_to_layer', {
+                mask_asset_id: selection?.maskId,
+                revision: session.revision,
+              })
+            }
+          />
+        </div>
         <ul className="space-y-1">
           {[...session.document.layers].reverse().map((layer) => (
             <LayerRow
               key={layer.id}
               layer={layer}
               active={selected?.id === layer.id}
+              disabled={tools.busy}
+              thumb={layer.asset_id ? session.assets.find((asset) => asset.id === layer.asset_id) : undefined}
               onSelect={() => selectLayer(layer.id)}
+              onToggleVisible={() =>
+                tools.invoke('set_layer_visible', {
+                  layer_id: layer.id,
+                  visible: !layer.visible,
+                })
+              }
             />
           ))}
         </ul>
@@ -94,7 +139,7 @@ export default function LayerPanel({
       {selected && (
         <Section title="变换">
           <p className="text-faint mb-2.5 text-[11px] leading-relaxed">
-            拖动即预览，松手写入画布，可用 ⌘Z 撤销。双击滑杆复位。
+            画布上可拖动未锁定的图层。滑杆拖动即预览，松手写入，可用 ⌘Z 撤销。
           </p>
           <LayerControls
             layer={selected}
@@ -144,32 +189,122 @@ export default function LayerPanel({
   )
 }
 
+function LayerAction({
+  id,
+  disabled,
+  label,
+  confirm,
+  title,
+  onConfirm,
+}: {
+  id: string
+  disabled: boolean
+  label: string
+  confirm: string
+  title: string
+  onConfirm: () => void
+}) {
+  const confirming = useEditorUi((state) => state.confirming)
+  const setConfirming = useEditorUi((state) => state.setConfirming)
+  const armed = confirming === id
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      title={armed ? confirm : title}
+      onClick={() => {
+        if (armed) {
+          setConfirming(null)
+          onConfirm()
+          return
+        }
+        setConfirming(id)
+      }}
+      className={`rounded-control flex-1 border py-1.5 text-[11px] font-medium transition-all duration-150 active:scale-95 disabled:opacity-40 ${
+        armed
+          ? 'border-brand bg-brand-soft text-brand-strong'
+          : 'border-line text-muted hover:text-ink hover:bg-soft'
+      }`}
+    >
+      {armed ? confirm : label}
+    </button>
+  )
+}
+
 function LayerRow({
   layer,
   active,
+  disabled,
+  thumb,
   onSelect,
+  onToggleVisible,
 }: {
   layer: Layer
   active: boolean
+  disabled: boolean
+  thumb?: Asset
   onSelect: () => void
+  onToggleVisible: () => void
 }) {
   return (
-    <li>
+    <li
+      className={`rounded-control flex items-center border transition-all duration-150 ${
+        active ? 'border-brand bg-brand-soft' : 'border-line hover:border-line-strong hover:bg-soft'
+      } ${layer.visible ? '' : 'opacity-50'}`}
+    >
       <button
         type="button"
         onClick={onSelect}
-        className={`rounded-control flex w-full items-center gap-2 border px-2.5 py-2 text-left transition-all duration-150 active:scale-[0.99] ${
-          active
-            ? 'border-brand bg-brand-soft'
-            : 'border-line hover:border-line-strong hover:bg-soft'
-        }`}
+        className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
       >
-        <span className="text-ink min-w-0 flex-1 truncate text-xs font-medium">{layer.name}</span>
+        <span className="bg-canvas border-line size-8 shrink-0 overflow-hidden rounded-[6px] border">
+          {thumb ? (
+            <img src={thumb.url} alt="" className="size-full object-cover" />
+          ) : (
+            <span className="text-faint grid size-full place-items-center text-[10px]">
+              {layer.kind === 'text' ? '文' : ''}
+            </span>
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="text-ink block truncate text-xs font-medium">{layer.name}</span>
+          <span className="text-faint block truncate text-[10px]">
+            {layer.kind === 'text' ? layer.text || '文字' : layer.locked ? '已锁定' : '图像'}
+          </span>
+        </span>
         <span className="text-faint shrink-0 text-[10px] tabular-nums">
           {Math.round(layer.opacity * 100)}%
         </span>
       </button>
+      <button
+        type="button"
+        disabled={disabled}
+        title={layer.visible ? '隐藏图层' : '显示图层'}
+        onClick={onToggleVisible}
+        className="text-muted hover:text-ink mr-1.5 grid size-7 shrink-0 place-items-center rounded-[6px] disabled:opacity-40"
+      >
+        <EyeIcon open={layer.visible} />
+      </button>
     </li>
+  )
+}
+
+function EyeIcon({ open }: { open: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8Z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      {open ? (
+        <circle cx="8" cy="8" r="1.7" fill="currentColor" />
+      ) : (
+        <path d="M3 13 13 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      )}
+    </svg>
   )
 }
 
@@ -188,13 +323,31 @@ function LayerControls({
   onRotate: (value: number) => void
   onReorder: (place: 'top' | 'bottom' | 'up' | 'down') => void
 }) {
+  const preview = useEditorUi((state) => state.layerPreview)
   const setLayerPreview = useEditorUi((state) => state.setLayerPreview)
   const scale = Math.abs(layer.transform.scale_x)
 
-  // 文档回传新值后撤下预览，避免与真实结果叠加
+  // 文档追上预览后再撤，避免选中/回写过程把图层拽回原位
   useEffect(() => {
-    setLayerPreview(null)
-  }, [setLayerPreview, layer.id, layer.opacity, layer.transform.scale_x, layer.transform.rotation])
+    if (!preview || preview.id !== layer.id) return
+    const same =
+      (preview.opacity === undefined || preview.opacity === layer.opacity) &&
+      (preview.scale === undefined || Math.abs(preview.scale - scale) < 0.001) &&
+      (preview.rotation === undefined || preview.rotation === layer.transform.rotation) &&
+      (preview.x === undefined || Math.abs(preview.x - layer.transform.x) < 0.5) &&
+      (preview.y === undefined || Math.abs(preview.y - layer.transform.y) < 0.5)
+    if (same) setLayerPreview(null)
+  }, [
+    preview,
+    scale,
+    setLayerPreview,
+    layer.id,
+    layer.opacity,
+    layer.transform.scale_x,
+    layer.transform.rotation,
+    layer.transform.x,
+    layer.transform.y,
+  ])
 
   useEffect(() => () => setLayerPreview(null), [setLayerPreview])
 

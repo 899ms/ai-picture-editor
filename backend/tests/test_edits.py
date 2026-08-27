@@ -3,12 +3,29 @@ from io import BytesIO
 
 from PIL import Image
 
-from app.edits.document import crop, flip, reorder, rotate, scale, set_opacity
+from app.edits.document import crop, flip, move, reorder, rotate, scale, set_opacity, set_visible
 from app.edits.mask import apply_masked, overlay_png
+from app.edits.ocr import TextBox
 from app.edits.pixels import adjust, remove_background
 from app.edits.render import TRANSPARENT, flatten
 from app.edits.segment import _circles
-from app.layers import BASE_LAYER_ID, Layer, LayerDocument, LayerKind, Transform
+from app.edits.split import (
+    already_promoted,
+    already_split,
+    cut_object,
+    mask_hash,
+    punch,
+    split_document,
+)
+from app.layers import (
+    BACKGROUND_LAYER_ID,
+    BASE_LAYER_ID,
+    SUBJECT_LAYER_ID,
+    Layer,
+    LayerDocument,
+    LayerKind,
+    Transform,
+)
 from app.providers.dashscope import _fit_edit_size
 from app.ratios import Ratio, cover_size
 
@@ -64,6 +81,20 @@ def test_rotate_can_be_relative_or_absolute():
 
 def test_opacity_is_absolute():
     assert set_opacity(_doc(), None, 0.4).layers[0].opacity == 0.4
+
+
+def test_visible_is_absolute():
+    hidden = set_visible(_doc(), "base", False)
+    assert hidden.layers[0].visible is False
+    assert set_visible(hidden, "base", True).layers[0].visible is True
+
+
+def test_move_accepts_absolute_and_relative():
+    shifted = move(_doc(), None, dx=12, dy=-8)
+    assert (shifted.layers[0].transform.x, shifted.layers[0].transform.y) == (12, -8)
+
+    parked = move(shifted, None, x=3, y=4)
+    assert (parked.layers[0].transform.x, parked.layers[0].transform.y) == (3, 4)
 
 
 def test_reorder_moves_named_layer_to_top():
@@ -163,6 +194,56 @@ def test_masked_composite_keeps_pixels_outside_the_selection():
 
     assert result.getpixel((6, 6))[:3] == (200, 10, 10)
     assert result.getpixel((40, 40))[:3] == (10, 20, 30)
+
+
+def test_cut_object_keeps_only_masked_pixels():
+    source = _png((10, 20, 30, 255), (48, 48))
+    mask = Image.new("L", (48, 48), 0)
+    mask.paste(255, (8, 8, 20, 20))
+
+    cut, x, y, width, height = cut_object(source, overlay_png(mask))
+    result = Image.open(BytesIO(cut))
+
+    assert (x, y, width, height) == (8, 8, 12, 12)
+    assert result.getpixel((2, 2))[:3] == (10, 20, 30)
+    assert result.getpixel((2, 2))[3] == 255
+
+
+def test_punch_clears_masked_pixels_and_keeps_the_rest():
+    source = _png((10, 20, 30, 255), (48, 48))
+    mask = Image.new("L", (48, 48), 0)
+    mask.paste(255, (0, 0, 12, 12))
+
+    result = Image.open(BytesIO(punch(source, overlay_png(mask))))
+
+    assert result.getpixel((4, 4))[3] == 0
+    assert result.getpixel((40, 40))[:3] == (10, 20, 30)
+
+
+def test_split_document_is_background_subject_and_text():
+    document = split_document(
+        _doc(80, 60),
+        background_id=uuid.uuid4(),
+        subject_id=uuid.uuid4(),
+        texts=[TextBox("夏日", 10, 8, 40, 16)],
+        subject_hash="abc",
+    )
+
+    assert [layer.id for layer in document.layers] == [
+        BACKGROUND_LAYER_ID,
+        SUBJECT_LAYER_ID,
+        "text-1",
+    ]
+    assert already_split(document)
+    assert document.layers[2].text == "夏日"
+    assert already_promoted(document, "abc")
+
+
+def test_mask_hash_is_stable_for_the_same_selection():
+    mask = Image.new("L", (32, 32), 0)
+    mask.paste(255, (4, 4, 12, 12))
+
+    assert mask_hash(overlay_png(mask)) == mask_hash(overlay_png(mask))
 
 
 def test_circle_mask_covers_the_clicked_point():
