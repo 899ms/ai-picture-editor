@@ -224,3 +224,87 @@ async def test_upscale_image_raises_resolution(signed_in: httpx.AsyncClient):
     assert updated["current_asset_id"] != session["current_asset_id"]
     assert (updated["document"]["width"], updated["document"]["height"]) == (640, 480)
     assert (current["width"], current["height"]) == (640, 480)
+
+
+async def _select(client: httpx.AsyncClient, session_id: str, revision: int, **payload) -> dict:
+    response = await client.post(
+        f"/api/sessions/{session_id}/selection",
+        json={"revision": revision, **payload},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+async def test_point_selection_is_bound_to_revision(signed_in: httpx.AsyncClient):
+    session = await open_session(signed_in)
+    body = await _select(
+        signed_in, session["id"], session["revision"], points=[{"x": 0.5, "y": 0.5}]
+    )
+
+    assert body["revision"] == session["revision"]
+    assert body["mask"]["kind"] == "mask"
+    assert body["markers"] == [{"index": 1, "x": 0.5, "y": 0.5}]
+
+    stale = await signed_in.post(
+        f"/api/sessions/{session['id']}/selection",
+        json={"revision": 99, "points": [{"x": 0.2, "y": 0.2}]},
+    )
+    assert stale.status_code == 409
+
+
+async def test_brush_selection_creates_a_mask(signed_in: httpx.AsyncClient):
+    session = await open_session(signed_in)
+    body = await _select(
+        signed_in,
+        session["id"],
+        session["revision"],
+        strokes=[[{"x": 0.2, "y": 0.2}, {"x": 0.8, "y": 0.8}]],
+    )
+
+    assert body["mask"]["has_alpha"] is True
+
+
+async def test_erase_region_adopts_masked_result(signed_in: httpx.AsyncClient):
+    session = await open_session(signed_in)
+    selected = await _select(
+        signed_in, session["id"], session["revision"], points=[{"x": 0.5, "y": 0.5}]
+    )
+    body = await invoke(
+        signed_in,
+        session["id"],
+        "erase_region",
+        {"mask_asset_id": selected["mask"]["id"], "revision": session["revision"]},
+    )
+
+    await run_tool({}, uuid.UUID(body["run"]["id"]))
+    updated = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
+
+    assert updated["current_asset_id"] != session["current_asset_id"]
+    assert updated["revision"] == 2
+    assert (await signed_in.get(f"/api/sessions/{session['id']}/selection")).json() is None
+
+
+async def test_replace_region_requires_prompt_and_selection(signed_in: httpx.AsyncClient):
+    session = await open_session(signed_in)
+    missing = await signed_in.post(
+        f"/api/sessions/{session['id']}/tools",
+        json={"tool": "replace_region", "params": {}},
+    )
+    assert missing.status_code == 422
+
+    selected = await _select(
+        signed_in, session["id"], session["revision"], points=[{"x": 0.4, "y": 0.6}]
+    )
+    body = await invoke(
+        signed_in,
+        session["id"],
+        "replace_region",
+        {
+            "prompt": "换成陶瓷杯",
+            "mask_asset_id": selected["mask"]["id"],
+            "revision": session["revision"],
+        },
+    )
+    await run_tool({}, uuid.UUID(body["run"]["id"]))
+    updated = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
+    assert updated["current_asset_id"] != session["current_asset_id"]

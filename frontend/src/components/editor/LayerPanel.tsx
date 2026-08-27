@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 import type { Asset } from '@/api/assets'
 import { ACTION_LABELS, type Layer, type SessionDetail } from '@/api/sessions'
-import { BackgroundForm, ExpandForm } from '@/components/editor/GenerateEdits'
+import { BackgroundForm, ExpandForm, ReplaceForm } from '@/components/editor/GenerateEdits'
 import { useSessionHistory, type SessionTools } from '@/hooks/useSessions'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { useEditorUi } from '@/stores/editorUi'
@@ -40,6 +40,7 @@ export default function LayerPanel({
   const selectedLayerId = useEditorUi((state) => state.selectedLayerId)
   const selectLayer = useEditorUi((state) => state.selectLayer)
   const panel = useEditorUi((state) => state.panel)
+  const selection = useEditorUi((state) => state.selection)
   const selected =
     session.document.layers.find((layer) => layer.id === selectedLayerId) ??
     session.document.layers.at(-1)
@@ -62,6 +63,18 @@ export default function LayerPanel({
         <ExpandForm
           disabled={tools.busy}
           onApply={(params) => tools.invoke('expand_canvas', params)}
+        />
+      )}
+      {panel === 'replace' && (
+        <ReplaceForm
+          disabled={tools.busy || !selection}
+          onApply={(params) =>
+            tools.invoke('replace_region', {
+              ...params,
+              mask_asset_id: selection?.maskId,
+              revision: session.revision,
+            })
+          }
         />
       )}
 

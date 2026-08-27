@@ -11,6 +11,7 @@ from app.tools.canvas import (
 )
 from app.tools.enhance import EXPAND_CANVAS, REPLACE_BACKGROUND, UPSCALE_IMAGE
 from app.tools.generate import GENERATE_IMAGE
+from app.tools.region import ERASE_REGION, REPLACE_REGION
 from app.tools.retouch import ADJUST_IMAGE, REMOVE_BACKGROUND
 
 SPECS: tuple[ToolSpec, ...] = (
@@ -20,6 +21,8 @@ SPECS: tuple[ToolSpec, ...] = (
     UPSCALE_IMAGE,
     REMOVE_BACKGROUND,
     ADJUST_IMAGE,
+    ERASE_REGION,
+    REPLACE_REGION,
     CROP_CANVAS,
     FLIP_LAYER,
     SET_LAYER_OPACITY,

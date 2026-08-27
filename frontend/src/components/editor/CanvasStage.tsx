@@ -12,11 +12,13 @@ import {
 } from 'react-konva'
 
 import type { Layer, LayerDocument } from '@/api/sessions'
+import { SelectionOverlay } from '@/components/editor/SelectionOverlay'
+import { useSelectStroke } from '@/hooks/useSelectStroke'
 import { useCanvasImage } from '@/hooks/useCanvasImage'
 import { useElementSize } from '@/hooks/useElementSize'
 import { makeAdjustFilter, toAdjustPreview, type AdjustPreview } from '@/lib/adjustPreview'
 import { useCanvasView } from '@/stores/canvasView'
-import { useEditorUi, type CropRect, type LayerPreview } from '@/stores/editorUi'
+import { useEditorUi, type CanvasSelection, type CropRect, type LayerPreview } from '@/stores/editorUi'
 
 const NO_FILTERS: ((imageData: ImageData) => void)[] = []
 // 预览按屏幕分辨率量级缓存，滤镜每帧重算才跟得上滑杆
@@ -26,10 +28,16 @@ export default function CanvasStage({
   document,
   previous,
   urls,
+  selection = null,
+  onPoint,
+  onStroke,
 }: {
   document: LayerDocument
   previous: LayerDocument | null
   urls: Map<string, string>
+  selection?: CanvasSelection | null
+  onPoint?: (x: number, y: number) => void
+  onStroke?: (points: { x: number; y: number }[]) => void
 }) {
   const [containerRef, size] = useElementSize<HTMLDivElement>()
   const scale = useCanvasView((state) => state.scale)
@@ -50,8 +58,20 @@ export default function CanvasStage({
   const setCompareAt = useEditorUi((state) => state.setCompareAt)
   const adjustPreview = useEditorUi((state) => state.adjustPreview)
   const layerPreview = useEditorUi((state) => state.layerPreview)
+  const selectMode = useEditorUi((state) => state.selectMode)
+  const stroke = useSelectStroke()
 
   const fitted = useRef('')
+  const selecting = Boolean(selectMode)
+
+  const canvasPoint = (stage: Konva.Stage | null) => {
+    const pointer = stage?.getRelativePointerPosition()
+    if (!pointer) return null
+    const x = pointer.x / document.width
+    const y = pointer.y / document.height
+    if (x < 0 || y < 0 || x > 1 || y > 1) return null
+    return { x, y }
+  }
 
   useEffect(() => {
     setViewport(size)
@@ -74,7 +94,7 @@ export default function CanvasStage({
     <div
       ref={containerRef}
       className={`bg-canvas relative h-full w-full overflow-hidden ${
-        cropOpen ? '' : 'cursor-grab active:cursor-grabbing'
+        selecting ? 'cursor-crosshair' : cropOpen ? '' : 'cursor-grab active:cursor-grabbing'
       }`}
     >
       <Stage
@@ -84,12 +104,34 @@ export default function CanvasStage({
         y={y}
         scaleX={scale}
         scaleY={scale}
-        draggable={!cropOpen}
+        draggable={!cropOpen && !selecting}
+        onMouseDown={(event) => {
+          if (selectMode !== 'brush') return
+          const point = canvasPoint(event.target.getStage())
+          if (point) stroke.start(point)
+        }}
+        onMouseMove={(event) => {
+          if (selectMode !== 'brush') return
+          const point = canvasPoint(event.target.getStage())
+          if (point) stroke.move(point)
+        }}
+        onMouseUp={() => {
+          if (selectMode !== 'brush') return
+          const points = stroke.end()
+          if (points.length) onStroke?.(points)
+        }}
+        onClick={(event) => {
+          if (selectMode !== 'point') return
+          const point = canvasPoint(event.target.getStage())
+          if (point) onPoint?.(point.x, point.y)
+        }}
         onDragMove={(event) => {
           if (event.target !== event.target.getStage()) return
           pan({ x: event.target.x(), y: event.target.y() })
         }}
-        onDblClick={() => fit(document)}
+        onDblClick={() => {
+          if (!selecting) fit(document)
+        }}
         onWheel={(event) => {
           event.evt.preventDefault()
           // 捏合与 ⌘ 滚动缩放，普通滚动平移，与主流画布一致
@@ -152,6 +194,15 @@ export default function CanvasStage({
             scale={scale}
             keepRatio={cropRatio !== 'free'}
             onChange={setCropRect}
+          />
+        )}
+
+        {(selection || stroke.draft.length > 0) && (
+          <SelectionOverlay
+            document={document}
+            selection={selection}
+            scale={scale}
+            draft={stroke.draft}
           />
         )}
       </Stage>

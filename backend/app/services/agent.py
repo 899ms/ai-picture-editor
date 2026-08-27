@@ -7,7 +7,7 @@ from app import agent
 from app.layers import LayerDocument
 from app.models import AgentRun, EditSession
 from app.models.tool_run import RunStatus
-from app.services import assets
+from app.services import assets, selections
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,13 @@ async def describe(session: AsyncSession, record: EditSession) -> str:
     current = await assets.get_for_user(session, record.user_id, record.current_asset_id)
     if current is not None:
         parts.append(f"当前图 {current.image_format}{'，含透明通道' if current.has_alpha else ''}")
+
+    selected = await selections.get(record.id, record.revision)
+    if selected:
+        markers = selected.get("markers") or []
+        parts.append(f"已有选区，{len(markers)} 个标点" if markers else "已有笔刷选区")
+    else:
+        parts.append("当前无选区")
     return "；".join(parts)
 
 

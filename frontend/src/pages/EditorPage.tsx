@@ -7,6 +7,7 @@ import EditorToolbar from '@/components/editor/EditorToolbar'
 import ImageWall from '@/components/editor/ImageWall'
 import LayerPanel from '@/components/editor/LayerPanel'
 import SessionSidebar from '@/components/editor/SessionSidebar'
+import { useSelection } from '@/hooks/useSelection'
 import { usePatchSession, useSession, useSessionTools } from '@/hooks/useSessions'
 import { ZOOM_STEP, useCanvasView } from '@/stores/canvasView'
 import { useEditorUi } from '@/stores/editorUi'
@@ -32,12 +33,15 @@ function Workspace({ sessionId }: { sessionId: string }) {
   const { data: session, isError } = useSession(sessionId)
   const patch = usePatchSession(sessionId)
   const tools = useSessionTools(sessionId)
+  const picking = useSelection(sessionId, session?.revision ?? 0)
 
   const cropOpen = useEditorUi((state) => state.cropOpen)
   const compareOpen = useEditorUi((state) => state.compareOpen)
   const panel = useEditorUi((state) => state.panel)
+  const selectMode = useEditorUi((state) => state.selectMode)
   const closeCrop = useEditorUi((state) => state.closeCrop)
   const setCompareOpen = useEditorUi((state) => state.setCompareOpen)
+  const setSelectMode = useEditorUi((state) => state.setSelectMode)
 
   const fit = useCanvasView((state) => state.fit)
   const stepZoom = useCanvasView((state) => state.stepZoom)
@@ -57,6 +61,7 @@ function Workspace({ sessionId }: { sessionId: string }) {
       if (event.key === 'Escape') {
         closeCrop()
         setCompareOpen(false)
+        setSelectMode(null)
         return
       }
 
@@ -83,7 +88,7 @@ function Workspace({ sessionId }: { sessionId: string }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [session, tools, closeCrop, setCompareOpen, fit, stepZoom, zoomTo])
+  }, [session, tools, closeCrop, setCompareOpen, setSelectMode, fit, stepZoom, zoomTo])
 
   if (!session) {
     return isError ? (
@@ -101,6 +106,7 @@ function Workspace({ sessionId }: { sessionId: string }) {
         <EditorToolbar
           session={session}
           tools={tools}
+          picking={picking}
           onRename={(title) => patch.mutate({ title })}
         />
 
@@ -109,6 +115,9 @@ function Workspace({ sessionId }: { sessionId: string }) {
             document={session.document}
             previous={session.previous_document}
             urls={urls}
+            selection={picking.selection}
+            onPoint={picking.busy ? undefined : picking.addPoint}
+            onStroke={picking.busy ? undefined : picking.addStroke}
           />
           <CanvasHint
             text={
@@ -118,7 +127,11 @@ function Workspace({ sessionId }: { sessionId: string }) {
                   ? '拖动裁剪框，点确定应用 · Esc 取消'
                   : compareOpen
                     ? '拖动画布上的圆点对比上一版 · Esc 退出'
-                    : null
+                    : selectMode === 'point'
+                      ? '点击物体建立选区，可连续点选 · Esc 退出'
+                      : selectMode === 'brush'
+                        ? '按住涂抹选区 · Esc 退出'
+                        : null
             }
           />
           {panel && (

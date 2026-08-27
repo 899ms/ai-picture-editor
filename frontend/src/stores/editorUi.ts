@@ -5,9 +5,19 @@ import type { LayerDocument } from '@/api/sessions'
 
 export type CropRatio = Ratio | 'free'
 export type CropRect = { x: number; y: number; width: number; height: number }
+export type SelectMode = 'point' | 'brush'
+export type Marker = { index: number; x: number; y: number }
+export type CanvasSelection = {
+  revision: number
+  maskId: string
+  maskUrl: string
+  markers: Marker[]
+}
 
 /** 滑杆拖动期间的即时效果，只作用于画布渲染，松手后由工具写入文档。 */
 export type LayerPreview = { id: string; opacity?: number; scale?: number; rotation?: number }
+
+type Panel = 'layers' | 'adjust' | 'background' | 'expand' | 'replace' | null
 
 type EditorUi = {
   selectedLayerId: string | null
@@ -16,7 +26,9 @@ type EditorUi = {
   cropRect: CropRect | null
   compareOpen: boolean
   compareAt: number
-  panel: 'layers' | 'adjust' | 'background' | 'expand' | null
+  panel: Panel
+  selectMode: SelectMode | null
+  selection: CanvasSelection | null
   adjustPreview: Record<string, number> | null
   layerPreview: LayerPreview | null
   selectLayer: (id: string | null) => void
@@ -26,7 +38,10 @@ type EditorUi = {
   closeCrop: () => void
   setCompareOpen: (open: boolean) => void
   setCompareAt: (value: number) => void
-  setPanel: (panel: 'layers' | 'adjust' | 'background' | 'expand' | null) => void
+  setPanel: (panel: Panel) => void
+  setSelectMode: (mode: SelectMode | null) => void
+  setSelection: (selection: CanvasSelection | null) => void
+  dropStaleSelection: (revision: number) => void
   setAdjustPreview: (values: Record<string, number> | null) => void
   setLayerPreview: (preview: LayerPreview | null) => void
 }
@@ -64,6 +79,8 @@ export const useEditorUi = create<EditorUi>((set) => ({
   compareOpen: false,
   compareAt: 0.5,
   panel: null,
+  selectMode: null,
+  selection: null,
   adjustPreview: null,
   layerPreview: null,
 
@@ -73,6 +90,7 @@ export const useEditorUi = create<EditorUi>((set) => ({
     set({
       cropOpen: true,
       compareOpen: false,
+      selectMode: null,
       cropRatio: ratio,
       cropRect: fitCrop(document, ratio),
     }),
@@ -84,11 +102,31 @@ export const useEditorUi = create<EditorUi>((set) => ({
   closeCrop: () => set({ cropOpen: false, cropRect: null }),
 
   setCompareOpen: (compareOpen) =>
-    set((state) => ({ compareOpen, cropOpen: compareOpen ? false : state.cropOpen })),
+    set((state) => ({
+      compareOpen,
+      cropOpen: compareOpen ? false : state.cropOpen,
+      selectMode: compareOpen ? null : state.selectMode,
+    })),
 
   setCompareAt: (compareAt) => set({ compareAt }),
 
   setPanel: (panel) => set({ panel, adjustPreview: null, layerPreview: null }),
+
+  setSelectMode: (selectMode) =>
+    set((state) => ({
+      selectMode,
+      cropOpen: false,
+      compareOpen: false,
+      cropRect: selectMode ? null : state.cropRect,
+      panel: selectMode ? null : state.panel,
+    })),
+
+  setSelection: (selection) => set({ selection }),
+
+  dropStaleSelection: (revision) =>
+    set((state) =>
+      state.selection && state.selection.revision !== revision ? { selection: null } : state,
+    ),
 
   setAdjustPreview: (adjustPreview) => set({ adjustPreview }),
 

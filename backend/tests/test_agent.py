@@ -80,6 +80,24 @@ async def test_canvas_facts_are_given_to_the_planner(signed_in: httpx.AsyncClien
     system = fake.messages[0].content
     assert "画幅 320×240" in system
     assert "修订号 1" in system
+    assert "当前无选区" in system
+
+
+async def test_existing_selection_is_given_to_the_planner(
+    signed_in: httpx.AsyncClient, fake_planner
+):
+    fake = fake_planner(tool_call("replace_region", {"prompt": "改成黑色"}))
+    session = await open_session(signed_in)
+    selected = await signed_in.post(
+        f"/api/sessions/{session['id']}/selection",
+        json={"revision": session["revision"], "points": [{"x": 0.5, "y": 0.5}]},
+    )
+    assert selected.status_code == 200
+
+    turn = await send(signed_in, session["id"], "骨头改成黑色")
+
+    assert "已有选区" in fake.messages[0].content
+    assert [step["tool"] for step in turn["steps"]] == ["replace_region"]
 
 
 async def test_unregistered_tool_is_refused(signed_in: httpx.AsyncClient, fake_planner):

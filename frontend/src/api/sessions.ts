@@ -83,12 +83,30 @@ export const ACTION_LABELS: Record<string, string> = {
   upscale_image: '超分',
   remove_background: '去背景',
   adjust_image: '调色',
+  erase_region: '局部消除',
+  replace_region: '局部替换',
   crop_canvas: '裁剪',
   flip_layer: '翻转',
   set_layer_opacity: '透明度',
   reorder_layer: '图层顺序',
   scale_layer: '缩放',
   rotate_layer: '旋转',
+}
+
+export type Marker = { index: number; x: number; y: number }
+
+export type Selection = {
+  revision: number
+  mask: Asset
+  markers: Marker[]
+}
+
+export type SelectInput = {
+  revision: number
+  points?: { x: number; y: number }[]
+  strokes?: { x: number; y: number }[][]
+  radius?: number
+  append?: boolean
 }
 
 export const sessionsApi = {
@@ -102,4 +120,7 @@ export const sessionsApi = {
     api.post<ToolInvoke>(`/sessions/${id}/tools`, { tool, params }),
   undo: (id: string) => api.post<SessionDetail>(`/sessions/${id}/undo`),
   redo: (id: string) => api.post<SessionDetail>(`/sessions/${id}/redo`),
+  select: (id: string, input: SelectInput) => api.post<Selection>(`/sessions/${id}/selection`, input),
+  getSelection: (id: string) => api.get<Selection | null>(`/sessions/${id}/selection`),
+  clearSelection: (id: string) => api.delete<void>(`/sessions/${id}/selection`),
 }

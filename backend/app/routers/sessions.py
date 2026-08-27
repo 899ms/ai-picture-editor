@@ -12,6 +12,8 @@ from app.schemas.asset import AssetOut
 from app.schemas.run import RunOut
 from app.schemas.session import (
     HistoryOut,
+    SelectIn,
+    SelectionOut,
     SessionCreateIn,
     SessionDetailOut,
     SessionOut,
@@ -21,7 +23,8 @@ from app.schemas.session import (
 )
 from app.services import agent as agent_service
 from app.services import assets as asset_service
-from app.services import sessions, tools
+from app.services import selections, sessions, tools
+from app.services.selections import EmptySelection, StaleSelection
 from app.services.sessions import CannotRedo, CannotUndo, SessionNotFound
 from app.services.tools import InvalidParams
 from app.tools import UnknownTool
@@ -100,6 +103,65 @@ async def patch_session(
         record = await sessions.switch_current(session, record, asset)
 
     return await _detail(session, record)
+
+
+async def _selection_out(session: AsyncSession, user: User, payload: dict) -> SelectionOut:
+    mask = await _asset(session, user, uuid.UUID(payload["mask_asset_id"]))
+    return SelectionOut(
+        revision=payload["revision"],
+        mask=AssetOut.of(mask),
+        markers=payload.get("markers") or [],
+    )
+
+
+@router.post("/{session_id}/selection")
+async def create_selection(
+    session_id: uuid.UUID, payload: SelectIn, user: CurrentUser, session: SessionDep
+) -> SelectionOut:
+    record = await _load(session, user, session_id)
+    try:
+        if payload.points:
+            stored = await selections.select_points(
+                session,
+                record,
+                payload.revision,
+                [(point.x, point.y) for point in payload.points],
+                append=payload.append,
+            )
+        elif payload.strokes:
+            stored = await selections.select_strokes(
+                session,
+                record,
+                payload.revision,
+                [[(point.x, point.y) for point in stroke] for stroke in payload.strokes],
+                payload.radius,
+            )
+        else:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "请点选或涂抹选区")
+    except StaleSelection as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "画布已更新，请重新选择") from exc
+    except EmptySelection as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "选区为空") from exc
+    return await _selection_out(session, user, stored)
+
+
+@router.get("/{session_id}/selection")
+async def get_selection(
+    session_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> SelectionOut | None:
+    record = await _load(session, user, session_id)
+    stored = await selections.get(record.id, record.revision)
+    if stored is None:
+        return None
+    return await _selection_out(session, user, stored)
+
+
+@router.delete("/{session_id}/selection", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_selection(
+    session_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> None:
+    record = await _load(session, user, session_id)
+    await selections.clear(record.id)
 
 
 @router.post("/{session_id}/tools", status_code=status.HTTP_202_ACCEPTED)

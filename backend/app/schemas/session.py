@@ -29,6 +29,31 @@ class ToolInvokeIn(BaseModel):
     params: dict = {}
 
 
+class PointIn(BaseModel):
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+
+
+class SelectIn(BaseModel):
+    revision: int
+    points: list[PointIn] = []
+    strokes: list[list[PointIn]] = []
+    radius: float = Field(default=0.03, ge=0.005, le=0.12)
+    append: bool = False
+
+
+class MarkerOut(BaseModel):
+    index: int
+    x: float
+    y: float
+
+
+class SelectionOut(BaseModel):
+    revision: int
+    mask: AssetOut
+    markers: list[MarkerOut] = []
+
+
 class SessionOut(BaseModel):
     id: uuid.UUID
     title: str

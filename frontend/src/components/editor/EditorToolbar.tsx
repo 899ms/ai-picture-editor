@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import type { SessionDetail } from '@/api/sessions'
+import type { SessionSelection } from '@/hooks/useSelection'
 import type { SessionTools } from '@/hooks/useSessions'
 import { ZOOM_STEP, useCanvasView } from '@/stores/canvasView'
 import { useEditorUi, type CropRatio } from '@/stores/editorUi'
@@ -16,10 +17,12 @@ const CROP_RATIOS: { value: CropRatio; label: string }[] = [
 export default function EditorToolbar({
   session,
   tools,
+  picking,
   onRename,
 }: {
   session: SessionDetail
   tools: SessionTools
+  picking: SessionSelection
   onRename: (title: string) => void
 }) {
   const scale = useCanvasView((state) => state.scale)
@@ -50,7 +53,54 @@ export default function EditorToolbar({
       </span>
 
       <div className="ml-1 flex shrink-0 items-center gap-1">
-        {ui.cropOpen ? (
+        {ui.selectMode ? (
+          <>
+            <ToolButton
+              active={ui.selectMode === 'point'}
+              title="点击物体生成选区"
+              onClick={() => ui.setSelectMode(ui.selectMode === 'point' ? null : 'point')}
+            >
+              点选
+            </ToolButton>
+            <ToolButton
+              active={ui.selectMode === 'brush'}
+              title="涂抹出选区"
+              onClick={() => ui.setSelectMode(ui.selectMode === 'brush' ? null : 'brush')}
+            >
+              笔刷
+            </ToolButton>
+            <ToolButton
+              disabled={tools.busy || picking.busy || !picking.selection}
+              title={picking.selection ? '消除选中区域' : '先点选或涂抹'}
+              onClick={() =>
+                tools.invoke('erase_region', {
+                  mask_asset_id: picking.selection?.maskId,
+                  revision: session.revision,
+                })
+              }
+            >
+              消除
+            </ToolButton>
+            <ToolButton
+              disabled={!picking.selection}
+              active={ui.panel === 'replace'}
+              title={picking.selection ? '按描述替换选区' : '先点选或涂抹'}
+              onClick={() => ui.setPanel(ui.panel === 'replace' ? null : 'replace')}
+            >
+              替换
+            </ToolButton>
+            <ToolButton
+              disabled={!picking.selection || picking.busy}
+              title="清除当前选区"
+              onClick={picking.clear}
+            >
+              清除
+            </ToolButton>
+            <ToolButton title="退出选择 Esc" onClick={() => ui.setSelectMode(null)}>
+              完成
+            </ToolButton>
+          </>
+        ) : ui.cropOpen ? (
           <>
             {CROP_RATIOS.map((item) => (
               <ToolButton
@@ -129,6 +179,20 @@ export default function EditorToolbar({
               onClick={() => ui.setPanel(ui.panel === 'adjust' ? null : 'adjust')}
             >
               调色
+            </ToolButton>
+            <ToolButton
+              disabled={tools.busy}
+              title="点选物体建立选区"
+              onClick={() => ui.setSelectMode('point')}
+            >
+              点选
+            </ToolButton>
+            <ToolButton
+              disabled={tools.busy}
+              title="涂抹建立选区"
+              onClick={() => ui.setSelectMode('brush')}
+            >
+              笔刷
             </ToolButton>
           </>
         )}

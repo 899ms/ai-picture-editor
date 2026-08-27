@@ -4,8 +4,10 @@ from io import BytesIO
 from PIL import Image
 
 from app.edits.document import crop, flip, reorder, rotate, scale, set_opacity
+from app.edits.mask import apply_masked, overlay_png
 from app.edits.pixels import adjust, remove_background
 from app.edits.render import TRANSPARENT, flatten
+from app.edits.segment import _circles
 from app.layers import BASE_LAYER_ID, Layer, LayerDocument, LayerKind, Transform
 from app.providers.dashscope import _fit_edit_size
 from app.ratios import Ratio, cover_size
@@ -149,6 +151,25 @@ def test_adjust_vignette_darkens_corners():
     result = Image.open(BytesIO(adjust(data, vignette=0.8)))
 
     assert result.getpixel((2, 2))[0] < result.getpixel((32, 32))[0]
+
+
+def test_masked_composite_keeps_pixels_outside_the_selection():
+    source = _png((10, 20, 30, 255), (48, 48))
+    edited = _png((200, 10, 10, 255), (48, 48))
+    mask = Image.new("L", (48, 48), 0)
+    mask.paste(255, (0, 0, 12, 12))
+
+    result = Image.open(BytesIO(apply_masked(source, edited, overlay_png(mask))))
+
+    assert result.getpixel((6, 6))[:3] == (200, 10, 10)
+    assert result.getpixel((40, 40))[:3] == (10, 20, 30)
+
+
+def test_circle_mask_covers_the_clicked_point():
+    mask = _circles((100, 80), [(0.5, 0.5)])
+
+    assert mask.getpixel((50, 40)) == 255
+    assert mask.getpixel((0, 0)) == 0
 
 
 def test_dashscope_edit_size_stays_within_model_limits():
