@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import events, storage
 from app.edits.mask import overlay_png, rasterize_strokes, to_luma, union
-from app.edits.segment import segment_points
+from app.edits.segment import segment_points, warm_embedding
 from app.models import EditSession
 from app.models.asset import AssetKind, AssetSource
 from app.services import assets
@@ -43,6 +43,11 @@ async def clear(session_id: uuid.UUID) -> None:
 
 async def save(session_id: uuid.UUID, payload: dict) -> None:
     await events.redis_client().set(_key(session_id), json.dumps(payload), ex=TTL)
+
+
+async def prepare(session: AsyncSession, record: EditSession) -> None:
+    source = await flatten_session(session, record)
+    await asyncio.to_thread(warm_embedding, source)
 
 
 async def select_points(

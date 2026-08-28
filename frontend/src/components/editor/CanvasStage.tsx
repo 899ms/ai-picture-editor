@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type Konva from 'konva'
 import {
   Circle,
@@ -14,6 +14,8 @@ import {
 
 import type { Layer, LayerDocument } from '@/api/sessions'
 import { SelectionOverlay } from '@/components/editor/SelectionOverlay'
+import { canvasStamp, useHeldCanvas, type HeldCanvas } from '@/hooks/useHeldCanvas'
+import { usePointPreview } from '@/hooks/usePointPreview'
 import { useSelectStroke } from '@/hooks/useSelectStroke'
 import { useCanvasImage } from '@/hooks/useCanvasImage'
 import { useElementSize } from '@/hooks/useElementSize'
@@ -24,6 +26,7 @@ import { useEditorUi, type CanvasSelection, type CropRect, type LayerPreview } f
 const NO_FILTERS: ((imageData: ImageData) => void)[] = []
 // 预览按屏幕分辨率量级缓存，滤镜每帧重算才跟得上滑杆
 const PREVIEW_PIXEL_RATIO = 0.6
+const SWITCH_FADE_MS = 180
 
 export default function CanvasStage({
   document,
@@ -66,7 +69,27 @@ export default function CanvasStage({
   const selectMode = useEditorUi((state) => state.selectMode)
   const selectedLayerId = useEditorUi((state) => state.selectedLayerId)
   const selectLayer = useEditorUi((state) => state.selectLayer)
+  const shown = useHeldCanvas(document, urls)
+  const canvas = shown.document
+  const images = shown.urls
+  const shownRef = useRef(shown)
+  const [ghost, setGhost] = useState<GhostFrame | null>(null)
+  const [ghostOpacity, setGhostOpacity] = useState(0)
   const stroke = useSelectStroke()
+  const point = usePointPreview(canvas, images)
+
+  const settleOverlay = useCallback(() => {
+    stroke.settle()
+    point.settle()
+  }, [stroke.settle, point.settle])
+
+  useEffect(() => {
+    if (!selection) settleOverlay()
+  }, [selection, settleOverlay])
+
+  useEffect(() => {
+    if (selectMode !== 'point') point.settle()
+  }, [selectMode, point.settle])
 
   const fitted = useRef('')
   const [holdingStage, setHoldingStage] = useState(false)
@@ -77,8 +100,8 @@ export default function CanvasStage({
   const canvasPoint = (stage: Konva.Stage | null) => {
     const pointer = stage?.getRelativePointerPosition()
     if (!pointer) return null
-    const x = pointer.x / document.width
-    const y = pointer.y / document.height
+    const x = pointer.x / canvas.width
+    const y = pointer.y / canvas.height
     if (x < 0 || y < 0 || x > 1 || y > 1) return null
     return { x, y }
   }
@@ -87,16 +110,37 @@ export default function CanvasStage({
     setViewport(size)
   }, [size, setViewport])
 
-  useEffect(() => {
-    if (!size.width || !size.height) return
-    const shape = `${document.width}x${document.height}`
-    if (fitted.current === shape) return
-    // 首次落位不做动画，之后画布尺寸变化时平滑归位
-    fit(document, { animate: fitted.current !== '' })
-    fitted.current = shape
-  }, [size.width, size.height, document, fit])
+  useLayoutEffect(() => {
+    const prev = shownRef.current
+    shownRef.current = shown
+    if (canvasStamp(prev.document, prev.urls) === canvasStamp(shown.document, shown.urls)) return
+    const view = useCanvasView.getState()
+    setGhost({
+      document: prev.document,
+      urls: prev.urls,
+      scale: view.scale,
+      x: view.x,
+      y: view.y,
+    })
+    setGhostOpacity(1)
+  }, [shown])
 
-  const split = document.width * compareAt
+  useLayoutEffect(() => {
+    if (!size.width || !size.height) return
+    const shape = `${canvas.width}x${canvas.height}`
+    if (fitted.current === shape) return
+    // 切图改画幅时一次对齐，不走适应缓动，否则同尺寸硬切、不同尺寸又会缩放到位
+    fit(canvas, { animate: false })
+    fitted.current = shape
+  }, [size.width, size.height, canvas, fit])
+
+  useEffect(() => {
+    if (!ghost || ghostOpacity === 0) return
+    const frame = requestAnimationFrame(() => setGhostOpacity(0))
+    return () => cancelAnimationFrame(frame)
+  }, [ghost, ghostOpacity])
+
+  const split = canvas.width * compareAt
   const color = useMemo(() => toAdjustPreview(adjustPreview), [adjustPreview])
   const compareWith = compareOpen ? previous : null
 
@@ -116,31 +160,33 @@ export default function CanvasStage({
         scaleY={scale}
         draggable={stageDraggable}
         onMouseDown={(event) => {
-          if (selectMode !== 'brush') return
+          if (selectMode !== 'brush' || !onStroke) return
           const point = canvasPoint(event.target.getStage())
           if (point) stroke.start(point)
         }}
         onMouseMove={(event) => {
-          if (selectMode !== 'brush') return
+          if (selectMode !== 'brush' || !onStroke) return
           const point = canvasPoint(event.target.getStage())
           if (point) stroke.move(point)
         }}
         onMouseUp={() => {
-          if (selectMode !== 'brush') return
+          if (selectMode !== 'brush' || !onStroke) return
           const points = stroke.end()
-          if (points.length) onStroke?.(points)
+          if (points.length) onStroke(points)
         }}
         onClick={(event) => {
-          if (selectMode !== 'point') return
-          const point = canvasPoint(event.target.getStage())
-          if (point) onPoint?.(point.x, point.y)
+          if (selectMode !== 'point' || !onPoint) return
+          const picked = canvasPoint(event.target.getStage())
+          if (!picked) return
+          point.pick(picked, selection?.markers ?? [])
+          onPoint(picked.x, picked.y)
         }}
         onDragMove={(event) => {
           if (event.target !== event.target.getStage()) return
           pan({ x: event.target.x(), y: event.target.y() })
         }}
         onDblClick={() => {
-          if (!selecting) fit(document)
+          if (!selecting) fit(canvas)
         }}
         onWheel={(event) => {
           event.evt.preventDefault()
@@ -153,41 +199,32 @@ export default function CanvasStage({
           panBy(-event.evt.deltaX, -event.evt.deltaY)
         }}
       >
-        <KonvaLayer listening={false}>
-          <Rect
-            width={document.width}
-            height={document.height}
-            fill="#ffffff"
-            shadowColor="#141a14"
-            shadowBlur={32}
-            shadowOpacity={0.16}
-          />
-        </KonvaLayer>
+        <CanvasBoard width={canvas.width} height={canvas.height} />
 
         {compareWith ? (
           <>
             <DocumentLayer
               document={compareWith}
-              urls={urls}
-              clip={{ x: 0, y: 0, width: split, height: document.height }}
+              urls={images}
+              clip={{ x: 0, y: 0, width: split, height: canvas.height }}
             />
             <DocumentLayer
-              document={document}
-              urls={urls}
+              document={canvas}
+              urls={images}
               color={color}
               layerPreview={layerPreview}
               clip={{
                 x: split,
                 y: 0,
-                width: document.width - split,
-                height: document.height,
+                width: canvas.width - split,
+                height: canvas.height,
               }}
             />
           </>
         ) : (
           <DocumentLayer
-            document={document}
-            urls={urls}
+            document={canvas}
+            urls={images}
             color={color}
             layerPreview={layerPreview}
             interactive={interactive}
@@ -202,12 +239,12 @@ export default function CanvasStage({
         )}
 
         {compareWith && (
-          <CompareDivider canvas={document} split={split} scale={scale} onChange={setCompareAt} />
+          <CompareDivider canvas={canvas} split={split} scale={scale} onChange={setCompareAt} />
         )}
 
         {cropOpen && cropRect && (
           <CropLayer
-            canvas={document}
+            canvas={canvas}
             rect={cropRect}
             scale={scale}
             keepRatio={cropRatio !== 'free'}
@@ -215,14 +252,82 @@ export default function CanvasStage({
           />
         )}
 
-        {(selection || stroke.draft.length > 0) && (
+        {(selection || stroke.draft.length > 0 || point.active) && (
           <SelectionOverlay
-            document={document}
+            document={canvas}
             selection={selection}
             scale={scale}
             draft={stroke.draft}
+            pending={stroke.pending}
+            preview={point.preview}
+            markers={point.markers.length ? point.markers : selection?.markers}
+            onMaskReady={settleOverlay}
           />
         )}
+      </Stage>
+      {ghost && (
+        <CanvasGhost
+          key={canvasStamp(ghost.document, ghost.urls)}
+          frame={ghost}
+          opacity={ghostOpacity}
+          size={size}
+          onFaded={() => {
+            setGhost(null)
+            setGhostOpacity(0)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+type GhostFrame = HeldCanvas & { scale: number; x: number; y: number }
+
+function CanvasBoard({ width, height }: { width: number; height: number }) {
+  return (
+    <KonvaLayer listening={false}>
+      <Rect
+        width={width}
+        height={height}
+        fill="#ffffff"
+        shadowColor="#141a14"
+        shadowBlur={32}
+        shadowOpacity={0.16}
+      />
+    </KonvaLayer>
+  )
+}
+
+function CanvasGhost({
+  frame,
+  opacity,
+  size,
+  onFaded,
+}: {
+  frame: GhostFrame
+  opacity: number
+  size: { width: number; height: number }
+  onFaded: () => void
+}) {
+  return (
+    <div
+      className="pointer-events-none absolute inset-0"
+      style={{ opacity, transition: `opacity ${SWITCH_FADE_MS}ms ease-out` }}
+      onTransitionEnd={(event) => {
+        if (event.propertyName === 'opacity' && opacity === 0) onFaded()
+      }}
+    >
+      <Stage
+        width={size.width}
+        height={size.height}
+        x={frame.x}
+        y={frame.y}
+        scaleX={frame.scale}
+        scaleY={frame.scale}
+        listening={false}
+      >
+        <CanvasBoard width={frame.document.width} height={frame.document.height} />
+        <DocumentLayer document={frame.document} urls={frame.urls} />
       </Stage>
     </div>
   )

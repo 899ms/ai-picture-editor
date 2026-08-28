@@ -25,7 +25,7 @@ _POLL_INTERVAL = 3.0
 _POLL_TIMEOUT = 300.0
 _TERMINAL = {"SUCCEEDED", "FAILED", "CANCELED", "UNKNOWN"}
 
-_PROGRESS = {"PENDING": (10, "排队中"), "RUNNING": (45, "生成中")}
+_PENDING = (10, "排队中")
 
 
 class DashScopeImageProvider(ImageProvider):
@@ -141,7 +141,9 @@ class DashScopeImageProvider(ImageProvider):
         return task_id
 
     async def _await_result(self, task_id: str, on_progress: ProgressCallback | None) -> list[str]:
-        deadline = asyncio.get_running_loop().time() + _POLL_TIMEOUT
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + _POLL_TIMEOUT
+        started = loop.time()
 
         while True:
             response = await self._client.get(_TASK_PATH.format(task_id=task_id))
@@ -153,10 +155,14 @@ class DashScopeImageProvider(ImageProvider):
                     raise ProviderError(f"生成任务{status}：{output.get('message', '未知原因')}")
                 return _extract_urls(output)
 
-            if on_progress and status in _PROGRESS:
-                await on_progress(*_PROGRESS[status])
+            if on_progress:
+                if status == "PENDING":
+                    await on_progress(*_PENDING)
+                elif status == "RUNNING":
+                    waited = loop.time() - started
+                    await on_progress(min(82, 38 + int(waited / 2.2)), "生成中")
 
-            if asyncio.get_running_loop().time() > deadline:
+            if loop.time() > deadline:
                 raise ProviderError("生成任务超时")
             await asyncio.sleep(_POLL_INTERVAL)
 

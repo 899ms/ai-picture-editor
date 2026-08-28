@@ -118,6 +118,14 @@ async def _selection_out(session: AsyncSession, user: User, payload: dict) -> Se
     )
 
 
+@router.post("/{session_id}/selection/prepare", status_code=status.HTTP_204_NO_CONTENT)
+async def prepare_selection(
+    session_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> None:
+    record = await _load(session, user, session_id)
+    await selections.prepare(session, record)
+
+
 @router.post("/{session_id}/selection")
 async def create_selection(
     session_id: uuid.UUID, payload: SelectIn, user: CurrentUser, session: SessionDep

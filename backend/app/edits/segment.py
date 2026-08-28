@@ -14,6 +14,18 @@ _embeddings: OrderedDict[str, object] = OrderedDict()
 _sam = None
 
 
+def warm_embedding(image: bytes) -> None:
+    """进点选时先算 embedding，点击就只跑 decoder。"""
+    if get_settings().matting_provider == "corner":
+        return
+    source = Image.open(io.BytesIO(image)).convert("RGB")
+    try:
+        _embedding_of(_sam_session(), image, source)
+    except Exception:
+        if get_settings().matting_provider == "rembg":
+            raise
+
+
 def segment_points(image: bytes, points: list[tuple[float, float]]) -> bytes:
     """按归一化点选生成 L 遮罩。同一张图的 embedding 只算一次。"""
     source = Image.open(io.BytesIO(image)).convert("RGB")

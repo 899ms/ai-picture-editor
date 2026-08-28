@@ -69,16 +69,22 @@ function Workspace({ sessionId }: { sessionId: string }) {
       const meta = event.metaKey || event.ctrlKey
       if (meta && event.key.toLowerCase() === 'z') {
         event.preventDefault()
-        if (event.repeat || tools.busy) return
+        if (event.repeat || tools.busy || picking.busy) return
         if (event.shiftKey) {
-          if (session.can_redo) tools.redo()
-        } else if (session.can_undo) tools.undo()
+          if (picking.canRedo) picking.redo()
+          else if (session.can_redo) tools.redo()
+        } else if (picking.canUndo) {
+          picking.undo()
+        } else if (session.can_undo) {
+          tools.undo()
+        }
         return
       }
       if (meta && event.key.toLowerCase() === 'y') {
         event.preventDefault()
-        if (event.repeat || tools.busy) return
-        if (session.can_redo) tools.redo()
+        if (event.repeat || tools.busy || picking.busy) return
+        if (picking.canRedo) picking.redo()
+        else if (session.can_redo) tools.redo()
         return
       }
 
@@ -91,7 +97,7 @@ function Workspace({ sessionId }: { sessionId: string }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [session, tools, closeCrop, setCompareOpen, setSelectMode, fit, stepZoom, zoomTo])
+  }, [session, tools, picking, closeCrop, setCompareOpen, setSelectMode, fit, stepZoom, zoomTo])
 
   if (!session) {
     return isError ? (
@@ -113,36 +119,40 @@ function Workspace({ sessionId }: { sessionId: string }) {
           onRename={(title) => patch.mutate({ title })}
         />
 
-        <div className="relative min-h-0 flex-1">
-          <CanvasStage
-            document={session.document}
-            previous={session.previous_document}
-            urls={urls}
-            selection={picking.selection}
-            onPoint={picking.busy ? undefined : picking.addPoint}
-            onStroke={picking.busy ? undefined : picking.addStroke}
-            onMove={(layer_id, x, y) => tools.invoke('move_layer', { layer_id, x, y })}
-            onScale={(layer_id, scale, x, y) =>
-              tools.invoke('scale_layer', { layer_id, scale_x: scale, scale_y: scale, x, y })
-            }
-          />
-          <CanvasHint
-            text={
-              tools.busy
-                ? `${tools.pendingStage || '处理中'}${tools.pendingProgress ? ` · ${tools.pendingProgress}%` : ''}`
-                : cropOpen
-                  ? '拖动裁剪框，点确定应用 · Esc 取消'
-                  : compareOpen
-                    ? '拖动画布上的圆点对比上一版 · Esc 退出'
-                    : selectMode === 'point'
-                      ? '点击物体建立选区，可连续点选 · Esc 退出'
-                      : selectMode === 'brush'
-                        ? '按住圈出要改的区域，松手即选中圈内 · Esc 退出'
-                        : null
-            }
-          />
+        <div className="relative flex min-h-0 min-w-0 flex-1">
+          <div className="relative min-h-0 min-w-0 flex-1">
+            <CanvasStage
+              document={session.document}
+              previous={session.previous_document}
+              urls={urls}
+              selection={picking.selection}
+              onPoint={picking.busy ? undefined : picking.addPoint}
+              onStroke={picking.busy ? undefined : picking.addStroke}
+              onMove={(layer_id, x, y) => tools.invoke('move_layer', { layer_id, x, y })}
+              onScale={(layer_id, scale, x, y) =>
+                tools.invoke('scale_layer', { layer_id, scale_x: scale, scale_y: scale, x, y })
+              }
+            />
+            <CanvasHint
+              text={
+                tools.busy
+                  ? `${tools.pendingStage || '处理中'} · ${tools.pendingProgress}%`
+                  : cropOpen
+                    ? '拖动裁剪框，点确定应用 · Esc 取消'
+                    : compareOpen
+                      ? '拖动画布上的圆点对比上一版 · Esc 退出'
+                      : selectMode === 'point'
+                        ? picking.busy
+                          ? '正在识别选区…'
+                          : '点击物体建立选区，可连续点选 · Esc 退出'
+                        : selectMode === 'brush'
+                          ? '按住圈出要改的区域，松手即选中圈内 · Esc 退出'
+                          : null
+              }
+            />
+          </div>
           {panel && (
-            <div className="shadow-panel animate-slide-in absolute inset-y-0 right-0 z-20">
+            <div className="shadow-panel animate-slide-in w-72 shrink-0 max-[960px]:absolute max-[960px]:inset-y-0 max-[960px]:right-0 max-[960px]:z-20">
               <LayerPanel session={session} tools={tools} />
             </div>
           )}

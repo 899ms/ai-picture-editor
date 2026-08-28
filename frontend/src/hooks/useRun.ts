@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { isTerminal, runsApi, type GenerateInput, type Run, type RunStatus } from '@/api/runs'
+import { useSmoothedProgress } from '@/hooks/useSmoothedProgress'
 
 type Progress = Pick<Run, 'id' | 'status' | 'progress' | 'stage' | 'error' | 'result'>
 
@@ -47,10 +48,13 @@ export function useRun(runId: string | null) {
   // 切换任务后旧连接的残留帧不应影响新任务
   const current = live?.id === runId ? live : null
   const status: RunStatus | undefined = current?.status ?? run?.status
+  const reported = current?.progress ?? run?.progress ?? 0
+  const running = Boolean(status && !isTerminal(status))
+  const progress = useSmoothedProgress(reported, running, runId)
 
   return {
     status,
-    progress: current?.progress ?? run?.progress ?? 0,
+    progress,
     stage: current?.stage ?? run?.stage ?? '',
     error: current?.error ?? run?.error ?? null,
     prompt: run?.prompt ?? null,

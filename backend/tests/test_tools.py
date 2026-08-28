@@ -275,6 +275,12 @@ async def test_upscale_image_raises_resolution(signed_in: httpx.AsyncClient):
     assert (current["width"], current["height"]) == (640, 480)
 
 
+async def test_preparing_point_selection_is_accepted(signed_in: httpx.AsyncClient):
+    session = await open_session(signed_in)
+    response = await signed_in.post(f"/api/sessions/{session['id']}/selection/prepare")
+    assert response.status_code == 204
+
+
 async def test_point_selection_is_bound_to_revision(signed_in: httpx.AsyncClient):
     session = await open_session(signed_in)
     body = await select(

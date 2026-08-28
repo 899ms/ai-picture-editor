@@ -240,16 +240,28 @@ export default function EditorToolbar({
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <ToolButton
-          disabled={tools.busy || !session.can_undo}
-          title={session.can_undo ? '撤销上一步 ⌘Z' : '没有可撤销的操作'}
-          onClick={tools.undo}
+          disabled={tools.busy || picking.busy || !(picking.canUndo || session.can_undo)}
+          title={
+            picking.canUndo
+              ? '撤销选区 ⌘Z'
+              : session.can_undo
+                ? '撤销上一步 ⌘Z'
+                : '没有可撤销的操作'
+          }
+          onClick={() => (picking.canUndo ? picking.undo() : tools.undo())}
         >
           撤销
         </ToolButton>
         <ToolButton
-          disabled={tools.busy || !session.can_redo}
-          title={session.can_redo ? '重做 ⌘⇧Z' : '没有可重做的操作'}
-          onClick={tools.redo}
+          disabled={tools.busy || picking.busy || !(picking.canRedo || session.can_redo)}
+          title={
+            picking.canRedo
+              ? '重做选区 ⌘⇧Z'
+              : session.can_redo
+                ? '重做 ⌘⇧Z'
+                : '没有可重做的操作'
+          }
+          onClick={() => (picking.canRedo ? picking.redo() : tools.redo())}
         >
           重做
         </ToolButton>

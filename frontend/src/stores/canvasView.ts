@@ -19,6 +19,8 @@ type CanvasViewState = Viewport & {
   viewport: Size
   // 视口还没量出来时排队的适应请求，量到之后立刻补上
   awaitingFit: Size | null
+  autoFit: boolean
+  lastFit: Size | null
   setViewport: (viewport: Size) => void
   fit: (document: Size, options?: { animate?: boolean }) => void
   zoomBy: (factor: number, anchor?: Point) => void
@@ -65,10 +67,12 @@ export const useCanvasView = create<CanvasViewState>((set, get) => ({
   y: 0,
   viewport: { width: 0, height: 0 },
   awaitingFit: null,
+  autoFit: true,
+  lastFit: null,
 
-  // 视口尺寸变化时锚住画面中心，面板开合或窗口缩放都不会让画布跳位
+  // 还在适应模式时，侧栏开合按新视口重新居中；手动缩放/平移则只锚住画面中心
   setViewport: (next) => {
-    const { viewport, x, y, awaitingFit } = get()
+    const { viewport, x, y, awaitingFit, autoFit, lastFit } = get()
     const ready = Boolean(next.width && next.height)
     const grown = {
       width: next.width - viewport.width,
@@ -76,6 +80,10 @@ export const useCanvasView = create<CanvasViewState>((set, get) => ({
     }
     if (!viewport.width || !viewport.height || (!grown.width && !grown.height)) {
       set({ viewport: next })
+    } else if (autoFit && lastFit) {
+      set({ viewport: next })
+      get().fit(lastFit, { animate: true })
+      return
     } else {
       set({ viewport: next, x: x + grown.width / 2, y: y + grown.height / 2 })
     }
@@ -86,7 +94,7 @@ export const useCanvasView = create<CanvasViewState>((set, get) => ({
     const { viewport, scale, x, y } = get()
     // 视口还没量出来就先记下来，等 setViewport 拿到真实尺寸再适应
     if (!viewport.width || !viewport.height) {
-      set({ awaitingFit: document })
+      set({ awaitingFit: document, autoFit: true, lastFit: document })
       return
     }
 
@@ -101,10 +109,10 @@ export const useCanvasView = create<CanvasViewState>((set, get) => ({
 
     stopGlide()
     if (options?.animate === false) {
-      set({ ...target, awaitingFit: null })
+      set({ ...target, awaitingFit: null, autoFit: true, lastFit: document })
       return
     }
-    set({ awaitingFit: null })
+    set({ awaitingFit: null, autoFit: true, lastFit: document })
     glide(set, { scale, x, y }, target)
   },
 
@@ -116,6 +124,7 @@ export const useCanvasView = create<CanvasViewState>((set, get) => ({
     // 以锚点为不动点，指针位置下的画面内容不漂移
     const ratio = next / scale
     set({
+      autoFit: false,
       scale: next,
       x: pivot.x - (pivot.x - x) * ratio,
       y: pivot.y - (pivot.y - y) * ratio,
@@ -132,6 +141,7 @@ export const useCanvasView = create<CanvasViewState>((set, get) => ({
     const next = clamp(scale * factor)
     const pivot = { x: viewport.width / 2, y: viewport.height / 2 }
     const ratio = next / scale
+    set({ autoFit: false })
     glide(
       set,
       { scale, x, y },
@@ -148,11 +158,11 @@ export const useCanvasView = create<CanvasViewState>((set, get) => ({
   panBy: (dx, dy) => {
     stopGlide()
     const { x, y } = get()
-    set({ x: x + dx, y: y + dy })
+    set({ autoFit: false, x: x + dx, y: y + dy })
   },
 
   pan: (point) => {
     stopGlide()
-    set(point)
+    set({ autoFit: false, ...point })
   },
 }))

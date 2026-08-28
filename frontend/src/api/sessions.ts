@@ -136,6 +136,7 @@ export const sessionsApi = {
   undo: (id: string) => api.post<SessionDetail>(`/sessions/${id}/undo`),
   redo: (id: string) => api.post<SessionDetail>(`/sessions/${id}/redo`),
   select: (id: string, input: SelectInput) => api.post<Selection>(`/sessions/${id}/selection`, input),
+  prepareSelection: (id: string) => api.post<void>(`/sessions/${id}/selection/prepare`),
   getSelection: (id: string) => api.get<Selection | null>(`/sessions/${id}/selection`),
   clearSelection: (id: string) => api.delete<void>(`/sessions/${id}/selection`),
   export: (id: string, asset_ids: string[] = []) => downloadExport(id, asset_ids),

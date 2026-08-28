@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Circle, Group, Image as KonvaImage, Layer as KonvaLayer, Line, Text } from 'react-konva'
 
 import type { LayerDocument } from '@/api/sessions'
@@ -10,13 +11,29 @@ export function SelectionOverlay({
   selection,
   scale,
   draft,
+  pending = false,
+  preview = null,
+  markers,
+  onMaskReady,
 }: {
   document: LayerDocument
   selection: CanvasSelection | null
   scale: number
   draft: { x: number; y: number }[]
+  pending?: boolean
+  preview?: HTMLCanvasElement | null
+  markers?: CanvasSelection['markers']
+  onMaskReady?: () => void
 }) {
   const mask = useCanvasImage(selection?.maskUrl)
+  const maskReady = Boolean(mask && selection && mask.url === selection.maskUrl)
+  const wasReady = useRef(false)
+  const pins = markers ?? selection?.markers ?? []
+
+  useEffect(() => {
+    if (maskReady && !wasReady.current) onMaskReady?.()
+    wasReady.current = maskReady
+  }, [maskReady, onMaskReady])
 
   return (
     <KonvaLayer listening={false}>
@@ -29,7 +46,16 @@ export function SelectionOverlay({
           listening={false}
         />
       )}
-      {draft.length > 1 && (
+      {preview && (
+        <KonvaImage
+          image={preview}
+          width={document.width}
+          height={document.height}
+          opacity={0.45}
+          listening={false}
+        />
+      )}
+      {draft.length > 1 && pending && (
         <Line
           points={draft.flatMap((point) => [point.x * document.width, point.y * document.height])}
           closed={draft.length > 2}
@@ -42,13 +68,14 @@ export function SelectionOverlay({
           listening={false}
         />
       )}
-      {(selection?.markers ?? []).map((marker) => (
+      {pins.map((marker) => (
         <MarkerBadge
           key={marker.index}
           x={marker.x * document.width}
           y={marker.y * document.height}
           index={marker.index}
           scale={scale}
+          pending={!maskReady}
         />
       ))}
     </KonvaLayer>
@@ -60,15 +87,18 @@ function MarkerBadge({
   y,
   index,
   scale,
+  pending = false,
 }: {
   x: number
   y: number
   index: number
   scale: number
+  pending?: boolean
 }) {
   const invert = 1 / scale
   return (
     <Group x={x} y={y} scaleX={invert} scaleY={invert} listening={false}>
+      {pending && <Circle radius={17} stroke="#5f98ad" strokeWidth={2} opacity={0.45} />}
       <Circle radius={11} fill="#5f98ad" shadowColor="#141a14" shadowBlur={8} shadowOpacity={0.35} />
       <Text
         text={String(index)}
