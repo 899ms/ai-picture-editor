@@ -3,6 +3,8 @@ import { Link, NavLink } from 'react-router-dom'
 
 import AgentConversation from '@/components/editor/AgentConversation'
 import MessageComposer from '@/components/editor/MessageComposer'
+import Button from '@/components/ui/Button'
+import { buttonClass } from '@/components/ui/buttonStyles'
 import { useSendMessage, useTurns } from '@/hooks/useAgent'
 import { errorMessage } from '@/hooks/useAuth'
 import { useSessions } from '@/hooks/useSessions'
@@ -17,22 +19,17 @@ export default function SessionSidebar({ activeId }: { activeId: string }) {
       <div className="border-line flex items-center gap-2 border-b p-3">
         <Link
           to="/create"
-          className="border-line text-ink hover:bg-soft rounded-control flex-1 py-2 text-center text-sm font-medium transition-colors"
+          className={`${buttonClass({ variant: 'outline' })} flex-1 py-2 text-center text-sm`}
         >
           新对话
         </Link>
-        <button
-          type="button"
+        <Button
+          active={historyOpen}
+          className="px-3 py-2"
           onClick={() => setHistoryOpen((open) => !open)}
-          aria-pressed={historyOpen}
-          className={`rounded-control px-3 py-2 text-xs font-medium transition-colors ${
-            historyOpen
-              ? 'bg-brand-soft text-brand-strong'
-              : 'text-muted hover:bg-soft hover:text-ink'
-          }`}
         >
           历史
-        </button>
+        </Button>
       </div>
 
       {historyOpen && <SessionList activeId={activeId} />}
@@ -87,7 +84,7 @@ function SessionList({ activeId }: { activeId: string }) {
         <li key={session.id}>
           <NavLink
             to={`/editor/${session.id}`}
-            className={`block rounded-[10px] px-2.5 py-2 transition-colors ${
+            className={`rounded-chip block px-2.5 py-2 transition-colors duration-150 ${
               session.id === activeId
                 ? 'bg-brand-soft text-brand-strong'
                 : 'text-muted hover:bg-soft hover:text-ink'

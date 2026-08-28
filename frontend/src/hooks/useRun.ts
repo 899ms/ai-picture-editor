@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isTerminal, runsApi, type GenerateInput, type Run, type RunStatus } from '@/api/runs'
 import { useSmoothedProgress } from '@/hooks/useSmoothedProgress'
 
-type Progress = Pick<Run, 'id' | 'status' | 'progress' | 'stage' | 'error' | 'result'>
+type Progress = Pick<Run, 'id' | 'tool' | 'status' | 'progress' | 'stage' | 'error' | 'result'>
 
 const runKey = (id: string) => ['run', id]
 
@@ -49,8 +49,12 @@ export function useRun(runId: string | null) {
   const current = live?.id === runId ? live : null
   const status: RunStatus | undefined = current?.status ?? run?.status
   const reported = current?.progress ?? run?.progress ?? 0
-  const running = Boolean(status && !isTerminal(status))
-  const progress = useSmoothedProgress(reported, running, runId)
+  const progress = useSmoothedProgress({
+    reported,
+    status,
+    tool: current?.tool ?? run?.tool,
+    token: runId,
+  })
 
   return {
     status,

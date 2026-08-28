@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import type { Asset } from '@/api/assets'
+import ProgressBar from '@/components/ui/ProgressBar'
 import { useRun } from '@/hooks/useRun'
 import { useCreateSession } from '@/hooks/useSessions'
 
@@ -122,12 +123,7 @@ function Candidate({
 function Progress({ percent, stage }: { percent: number; stage: string }) {
   return (
     <Centered title="正在生成" hint={stage || '任务已提交，正在排队'}>
-      <div className="bg-line mt-6 h-1 w-64 overflow-hidden rounded-full">
-        <div
-          className="bg-ink h-full rounded-full transition-all duration-500"
-          style={{ width: `${Math.max(percent, 4)}%` }}
-        />
-      </div>
+      <ProgressBar value={percent} className="mt-6 h-1 w-64 rounded-full" />
       <p className="text-faint mt-2 text-xs tabular-nums">{percent}%</p>
     </Centered>
   )

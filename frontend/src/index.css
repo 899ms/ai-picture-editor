@@ -22,6 +22,7 @@
   --color-danger: #d95656;
   --color-success: #3b8a61;
 
+  --radius-chip: 8px;
   --radius-card: 18px;
   --radius-control: 12px;
   --radius-panel: 26px;
@@ -37,6 +38,7 @@
   --animate-pop: pop 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-fade-out: fade-out 0.18s ease-in both;
   --animate-slide-in: slide-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-slide-out: slide-out 0.2s ease-in both;
   --animate-fade-in: fade-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
 
   @keyframes rise {
@@ -80,6 +82,17 @@
     to {
       opacity: 1;
       transform: none;
+    }
+  }
+
+  @keyframes slide-out {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 0;
+      transform: translate3d(16px, 0, 0);
     }
   }
 

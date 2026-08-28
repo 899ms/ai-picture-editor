@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import AssetLibrary from '@/components/AssetLibrary'
+import ProgressBar from '@/components/ui/ProgressBar'
 import type { Asset } from '@/api/assets'
 import type { SessionDetail } from '@/api/sessions'
 import { errorMessage } from '@/hooks/useAuth'
@@ -212,10 +213,19 @@ function Workspace({ sessionId }: { sessionId: string }) {
           ))}
         </div>
         {tools.busy && (
-          <p className="text-muted mt-2 text-xs">
-            {tools.pendingStage || '处理中'}
-            {tools.pendingProgress ? ` · ${tools.pendingProgress}%` : ''}
-          </p>
+          <div className="mt-2">
+            <p className="text-muted text-xs">
+              {tools.pendingStage || '处理中'}
+              {tools.pending ? ` · ${tools.pendingProgress}%` : ''}
+            </p>
+            {tools.pending && (
+              <ProgressBar
+                value={tools.pendingProgress}
+                tone="brand"
+                className="mt-1.5 h-0.5 w-48 rounded-full"
+              />
+            )}
+          </div>
         )}
       </section>
 

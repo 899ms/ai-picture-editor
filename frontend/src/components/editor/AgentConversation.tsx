@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query'
 
 import type { PlanStep, StepStatus, Turn } from '@/api/agent'
 import { isTerminal } from '@/api/runs'
+import Button from '@/components/ui/Button'
+import ProgressBar from '@/components/ui/ProgressBar'
 import { usePlanActions, useTurns } from '@/hooks/useAgent'
 import { useRun } from '@/hooks/useRun'
 
@@ -114,14 +116,9 @@ function Action({
   onClick: () => void
 }) {
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className="border-line text-ink hover:bg-soft rounded-control px-2.5 py-1 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-    >
+    <Button variant="outline" size="sm" disabled={disabled} onClick={onClick}>
       {children}
-    </button>
+    </Button>
   )
 }
 
@@ -162,12 +159,7 @@ function StepCard({
 
       {running && (
         <>
-          <div className="bg-line mt-2 h-0.5 overflow-hidden rounded-full">
-            <div
-              className="bg-ink h-full rounded-full transition-all duration-500"
-              style={{ width: `${Math.max(progress, 4)}%` }}
-            />
-          </div>
+          <ProgressBar value={progress} className="mt-2 h-0.5 rounded-full" />
           <p className="text-faint mt-1.5 text-[10px]">{stage}</p>
         </>
       )}

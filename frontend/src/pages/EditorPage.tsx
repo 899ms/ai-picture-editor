@@ -7,10 +7,16 @@ import EditorToolbar from '@/components/editor/EditorToolbar'
 import ImageWall from '@/components/editor/ImageWall'
 import LayerPanel from '@/components/editor/LayerPanel'
 import SessionSidebar from '@/components/editor/SessionSidebar'
+import ProgressBar from '@/components/ui/ProgressBar'
+import { buttonClass } from '@/components/ui/buttonStyles'
+import { useMountTransition } from '@/hooks/useMountTransition'
 import { useSelection } from '@/hooks/useSelection'
 import { usePatchSession, useSession, useSessionTools } from '@/hooks/useSessions'
 import { ZOOM_STEP, useCanvasView } from '@/stores/canvasView'
 import { useEditorUi } from '@/stores/editorUi'
+
+// 与 index.css 的 slide-out 时长保持一致
+const PANEL_EXIT_MS = 200
 
 export default function EditorPage() {
   const { sessionId = '' } = useParams()
@@ -43,6 +49,8 @@ function Workspace({ sessionId }: { sessionId: string }) {
   const closeCrop = useEditorUi((state) => state.closeCrop)
   const setCompareOpen = useEditorUi((state) => state.setCompareOpen)
   const setSelectMode = useEditorUi((state) => state.setSelectMode)
+  const setPanel = useEditorUi((state) => state.setPanel)
+  const heldPanel = useMountTransition(panel, PANEL_EXIT_MS)
 
   const fit = useCanvasView((state) => state.fit)
   const stepZoom = useCanvasView((state) => state.stepZoom)
@@ -59,10 +67,12 @@ function Workspace({ sessionId }: { sessionId: string }) {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
         return
       }
+      // Esc 一次只收一层，先退临时模式，都退完了才关右侧面板
       if (event.key === 'Escape') {
-        closeCrop()
-        setCompareOpen(false)
-        setSelectMode(null)
+        if (cropOpen) closeCrop()
+        else if (compareOpen) setCompareOpen(false)
+        else if (selectMode) setSelectMode(null)
+        else if (panel) setPanel(null)
         return
       }
 
@@ -97,7 +107,22 @@ function Workspace({ sessionId }: { sessionId: string }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [session, tools, picking, closeCrop, setCompareOpen, setSelectMode, fit, stepZoom, zoomTo])
+  }, [
+    session,
+    tools,
+    picking,
+    cropOpen,
+    compareOpen,
+    selectMode,
+    panel,
+    closeCrop,
+    setCompareOpen,
+    setSelectMode,
+    setPanel,
+    fit,
+    stepZoom,
+    zoomTo,
+  ])
 
   if (!session) {
     return isError ? (
@@ -118,6 +143,9 @@ function Workspace({ sessionId }: { sessionId: string }) {
           picking={picking}
           onRename={(title) => patch.mutate({ title })}
         />
+        {tools.pending && (
+          <ProgressBar value={tools.pendingProgress} tone="brand" className="h-0.5 shrink-0" />
+        )}
 
         <div className="relative flex min-h-0 min-w-0 flex-1">
           <div className="relative min-h-0 min-w-0 flex-1">
@@ -134,26 +162,25 @@ function Workspace({ sessionId }: { sessionId: string }) {
               }
             />
             <CanvasHint
-              text={
-                tools.busy
-                  ? `${tools.pendingStage || '处理中'} · ${tools.pendingProgress}%`
-                  : cropOpen
-                    ? '拖动裁剪框，点确定应用 · Esc 取消'
-                    : compareOpen
-                      ? '拖动画布上的圆点对比上一版 · Esc 退出'
-                      : selectMode === 'point'
-                        ? picking.busy
-                          ? '正在识别选区…'
-                          : '点击物体建立选区，可连续点选 · Esc 退出'
-                        : selectMode === 'brush'
-                          ? '按住圈出要改的区域，松手即选中圈内 · Esc 退出'
-                          : null
-              }
+              {...canvasHint({
+                busy: tools.busy,
+                pending: tools.pending,
+                stage: tools.pendingStage,
+                progress: tools.pendingProgress,
+                cropOpen,
+                compareOpen,
+                selectMode,
+                picking: picking.busy,
+              })}
             />
           </div>
-          {panel && (
-            <div className="shadow-panel animate-slide-in w-72 shrink-0 max-[960px]:absolute max-[960px]:inset-y-0 max-[960px]:right-0 max-[960px]:z-20">
-              <LayerPanel session={session} tools={tools} />
+          {heldPanel && (
+            <div
+              className={`shadow-panel w-72 shrink-0 max-[960px]:absolute max-[960px]:inset-y-0 max-[960px]:right-0 max-[960px]:z-20 ${
+                heldPanel.exiting ? 'animate-slide-out' : 'animate-slide-in'
+              }`}
+            >
+              <LayerPanel session={session} tools={tools} panel={heldPanel.value} />
             </div>
           )}
         </div>
@@ -169,12 +196,46 @@ function Workspace({ sessionId }: { sessionId: string }) {
   )
 }
 
+/** 提示按模式分组，这样切模式会重播一次入场，但进度百分比刷新不会。 */
+function canvasHint({
+  busy,
+  pending,
+  stage,
+  progress,
+  cropOpen,
+  compareOpen,
+  selectMode,
+  picking,
+}: {
+  busy: boolean
+  pending: boolean
+  stage: string
+  progress: number
+  cropOpen: boolean
+  compareOpen: boolean
+  selectMode: 'point' | 'brush' | null
+  picking: boolean
+}) {
+  // 撤销、重做没有任务进度，只说在忙
+  if (busy) {
+    return { mode: 'busy', text: pending ? `${stage || '处理中'} · ${progress}%` : '处理中' }
+  }
+  if (cropOpen) return { mode: 'crop', text: '拖动裁剪框，点确定应用 · Esc 取消' }
+  if (compareOpen) return { mode: 'compare', text: '拖动画布上的圆点对比上一版 · Esc 退出' }
+  if (selectMode === 'point') {
+    return picking
+      ? { mode: 'point-busy', text: '正在识别选区…' }
+      : { mode: 'point', text: '点击物体建立选区，可连续点选 · Esc 退出' }
+  }
+  if (selectMode === 'brush') {
+    return { mode: 'brush', text: '按住圈出要改的区域，松手即选中圈内 · Esc 退出' }
+  }
+  return { mode: 'idle', text: null }
+}
+
 function CreateLink() {
   return (
-    <Link
-      to="/create"
-      className="bg-ink hover:bg-dark rounded-control mt-5 px-4 py-2 text-sm font-medium text-white"
-    >
+    <Link to="/create" className={`${buttonClass({ variant: 'solid' })} mt-5 px-4 py-2 text-sm`}>
       去创作
     </Link>
   )

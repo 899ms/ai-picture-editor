@@ -113,7 +113,7 @@ export default function CanvasStage({
   useLayoutEffect(() => {
     const prev = shownRef.current
     shownRef.current = shown
-    if (canvasStamp(prev.document, prev.urls) === canvasStamp(shown.document, shown.urls)) return
+    if (canvasStamp(prev.document) === canvasStamp(shown.document)) return
     const view = useCanvasView.getState()
     setGhost({
       document: prev.document,
@@ -148,7 +148,7 @@ export default function CanvasStage({
     <div
       ref={containerRef}
       className={`bg-canvas relative h-full w-full overflow-hidden ${
-        selecting ? 'cursor-crosshair' : cropOpen ? '' : 'cursor-grab active:cursor-grabbing'
+        selecting || cropOpen ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'
       }`}
     >
       <Stage
@@ -267,7 +267,7 @@ export default function CanvasStage({
       </Stage>
       {ghost && (
         <CanvasGhost
-          key={canvasStamp(ghost.document, ghost.urls)}
+          key={canvasStamp(ghost.document)}
           frame={ghost}
           opacity={ghostOpacity}
           size={size}
@@ -788,17 +788,14 @@ function LayerScaler({
       }}
       onTransformStart={() => onHoldStage?.(true)}
       onTransformEnd={() => {
-        onHoldStage?.(false)
-        // 松手时不要先改节点：Transformer 已经摆好，再 setAttrs 会抖一下。
-        // 倍率与位置交给 React 一次写入，节点保持现状直到文档追上。
         const next = clampLayerScale((Math.abs(node.scaleX()) + Math.abs(node.scaleY())) / 2)
         const at = { x: node.x() - layer.width / 2, y: node.y() - layer.height / 2 }
         const still =
           Math.abs(next - Math.abs(layer.transform.scale_x)) < 0.001 &&
           Math.abs(at.x - layer.transform.x) < 0.5 &&
           Math.abs(at.y - layer.transform.y) < 0.5
-        if (still) return
-        onScale?.(layer.id, next, at.x, at.y)
+        if (!still) onScale?.(layer.id, next, at.x, at.y)
+        onHoldStage?.(false)
       }}
     />
   )

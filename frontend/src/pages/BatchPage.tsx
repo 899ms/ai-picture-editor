@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Asset } from '@/api/assets'
 import { isTerminal } from '@/api/runs'
 import ImageDropzone from '@/components/ImageDropzone'
+import ProgressBar from '@/components/ui/ProgressBar'
 import { useCreateBatch, useBatch, useBatches, useExportBatch } from '@/hooks/useBatch'
 import { errorMessage } from '@/hooks/useAuth'
 import { useAssetLibrary, useUploadAsset } from '@/hooks/useAssets'
@@ -189,8 +190,11 @@ function Watch({ runId }: { runId: string }) {
           <h1 className="text-ink text-2xl font-semibold tracking-tight">批量进度</h1>
           <p className="text-muted mt-1 text-sm">
             {live.stage || '处理中'}
-            {live.progress ? ` · ${live.progress}%` : ''}
+            {done ? '' : ` · ${live.progress}%`}
           </p>
+          {!done && (
+            <ProgressBar value={live.progress} className="mt-2 h-0.5 w-64 rounded-full" />
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Link

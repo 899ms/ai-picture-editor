@@ -44,17 +44,17 @@ export default function ImageWall({
                   ? `当前画布 · ${KIND_LABELS[asset.kind]}`
                   : `采用这张 · ${KIND_LABELS[asset.kind]} ${asset.width}×${asset.height}`
               }
-              className={`bg-canvas group relative size-16 shrink-0 overflow-hidden rounded-[10px] border-2 transition-all duration-200 disabled:cursor-default ${
+              className={`bg-canvas group rounded-chip relative size-16 shrink-0 overflow-hidden border-2 transition-all duration-150 disabled:cursor-default ${
                 active
                   ? 'border-brand shadow-control'
-                  : 'border-line hover:border-brand hover:-translate-y-0.5 hover:shadow-control active:translate-y-0 active:scale-95'
+                  : 'border-line hover:border-brand hover:shadow-control active:scale-[0.97]'
               }`}
             >
               <img
                 src={asset.url}
                 alt=""
                 loading="lazy"
-                className="size-full object-contain transition-transform duration-200 group-hover:scale-105"
+                className="size-full object-contain transition-transform duration-150 group-hover:scale-[1.03]"
               />
               <span className="bg-ink/70 absolute right-0 bottom-0 left-0 py-0.5 text-[10px] text-white">
                 {KIND_LABELS[asset.kind]}

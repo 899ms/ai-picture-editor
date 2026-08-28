@@ -5,11 +5,12 @@ import { preloadCanvasImage } from '@/hooks/useCanvasImage'
 
 export type HeldCanvas = { document: LayerDocument; urls: Map<string, string> }
 
-/** 决定要不要等预加载、要不要切图过渡：画幅或图层资源变了才算换图。 */
-export function canvasStamp(document: LayerDocument, urls: Map<string, string>) {
-  const layers = document.layers
-    .map((layer) => `${layer.id}:${layer.asset_id}:${layer.asset_id ? urls.get(layer.asset_id) : ''}`)
-    .join('|')
+/**
+ * 只按画幅和图层资源判断是不是换图。签名 URL 每次回写都会变，
+ * 不能算进去，否则缩放、位移也会被当成切图，旧倍率先闪一下再淡出。
+ */
+export function canvasStamp(document: LayerDocument) {
+  const layers = document.layers.map((layer) => `${layer.id}:${layer.asset_id ?? ''}`).join('|')
   return `${document.width}x${document.height}:${layers}`
 }
 
@@ -23,14 +24,17 @@ function needed(document: LayerDocument, urls: Map<string, string>) {
 
 /** 下一张图预加载完成前继续画当前帧，避免切图时空一层再弹出来。 */
 export function useHeldCanvas(document: LayerDocument, urls: Map<string, string>): HeldCanvas {
-  const [shown, setShown] = useState<HeldCanvas>({ document, urls })
-  const incomingKey = canvasStamp(document, urls)
-  const shownKey = canvasStamp(shown.document, shown.urls)
+  const incomingKey = canvasStamp(document)
+  const [held, setHeld] = useState<HeldCanvas & { key: string }>({
+    document,
+    urls,
+    key: incomingKey,
+  })
 
   useEffect(() => {
-    const next = { document, urls }
-    if (incomingKey === shownKey) {
-      setShown((current) =>
+    const next = { document, urls, key: incomingKey }
+    if (incomingKey === held.key) {
+      setHeld((current) =>
         current.document === document && current.urls === urls ? current : next,
       )
       return
@@ -38,7 +42,7 @@ export function useHeldCanvas(document: LayerDocument, urls: Map<string, string>
 
     let cancelled = false
     const apply = () => {
-      if (!cancelled) setShown(next)
+      if (!cancelled) setHeld(next)
     }
     const urlsToLoad = needed(document, urls)
     if (urlsToLoad.length === 0) {
@@ -51,7 +55,9 @@ export function useHeldCanvas(document: LayerDocument, urls: Map<string, string>
     return () => {
       cancelled = true
     }
-  }, [incomingKey, shownKey, document, urls])
+  }, [incomingKey, held.key, document, urls])
 
-  return shown
+  // 同一组图层：变换和刷新后的签名立刻跟上，不必等预加载
+  if (incomingKey === held.key) return { document, urls }
+  return { document: held.document, urls: held.urls }
 }

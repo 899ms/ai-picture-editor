@@ -24,7 +24,7 @@ export type LayerPreview = {
   y?: number
 }
 
-type Panel = 'layers' | 'adjust' | 'background' | 'expand' | 'replace' | null
+export type Panel = 'layers' | 'adjust' | 'background' | 'expand' | 'replace' | null
 
 type EditorUi = {
   selectedLayerId: string | null
@@ -36,7 +36,6 @@ type EditorUi = {
   panel: Panel
   selectMode: SelectMode | null
   selection: CanvasSelection | null
-  confirming: string | null
   splitIncludeText: boolean
   adjustPreview: Record<string, number> | null
   layerPreview: LayerPreview | null
@@ -51,7 +50,6 @@ type EditorUi = {
   setSelectMode: (mode: SelectMode | null) => void
   setSelection: (selection: CanvasSelection | null) => void
   dropStaleSelection: (revision: number) => void
-  setConfirming: (confirming: string | null) => void
   setSplitIncludeText: (splitIncludeText: boolean) => void
   setAdjustPreview: (values: Record<string, number> | null) => void
   setLayerPreview: (preview: LayerPreview | null) => void
@@ -95,7 +93,6 @@ export const useEditorUi = create<EditorUi>((set) => ({
   panel: null,
   selectMode: null,
   selection: null,
-  confirming: null,
   splitIncludeText: false,
   adjustPreview: null,
   layerPreview: null,
@@ -111,7 +108,6 @@ export const useEditorUi = create<EditorUi>((set) => ({
       cropOpen: true,
       compareOpen: false,
       selectMode: null,
-      confirming: null,
       panel: withoutReplace(state.panel),
       cropRatio: ratio,
       cropRect: fitCrop(document, ratio),
@@ -129,12 +125,11 @@ export const useEditorUi = create<EditorUi>((set) => ({
       cropOpen: compareOpen ? false : state.cropOpen,
       selectMode: compareOpen ? null : state.selectMode,
       panel: compareOpen ? withoutReplace(state.panel) : state.panel,
-      confirming: compareOpen ? null : state.confirming,
     })),
 
   setCompareAt: (compareAt) => set({ compareAt }),
 
-  setPanel: (panel) => set({ panel, adjustPreview: null, layerPreview: null, confirming: null }),
+  setPanel: (panel) => set({ panel, adjustPreview: null, layerPreview: null }),
 
   setSelectMode: (selectMode) =>
     set((state) => ({
@@ -143,7 +138,6 @@ export const useEditorUi = create<EditorUi>((set) => ({
       compareOpen: false,
       cropRect: selectMode ? null : state.cropRect,
       panel: selectMode ? null : withoutReplace(state.panel),
-      confirming: null,
     })),
 
   setSelection: (selection) => set({ selection }),
@@ -152,8 +146,6 @@ export const useEditorUi = create<EditorUi>((set) => ({
     set((state) =>
       state.selection && state.selection.revision !== revision ? { selection: null } : state,
     ),
-
-  setConfirming: (confirming) => set({ confirming }),
 
   setSplitIncludeText: (splitIncludeText) => set({ splitIncludeText }),
 

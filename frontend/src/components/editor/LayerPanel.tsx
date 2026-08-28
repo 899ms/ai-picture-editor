@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react'
 import type { Asset } from '@/api/assets'
 import { ACTION_LABELS, type Layer, type SessionDetail } from '@/api/sessions'
 import { BackgroundForm, ExpandForm, ReplaceForm } from '@/components/editor/GenerateEdits'
+import Button from '@/components/ui/Button'
 import { useSessionHistory, type SessionTools } from '@/hooks/useSessions'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { wallOnly } from '@/lib/layers'
-import { useEditorUi } from '@/stores/editorUi'
+import { useEditorUi, type Panel } from '@/stores/editorUi'
 
 const ADJUST_FIELDS: { key: string; label: string; min?: number }[] = [
   { key: 'brightness', label: '亮度' },
@@ -32,15 +33,17 @@ const REORDER_LABELS = {
 export default function LayerPanel({
   session,
   tools,
+  panel,
 }: {
   session: SessionDetail
   tools: SessionTools
+  // 由外层传入，关闭动画期间仍能画出原来的表单，不会先塌一半
+  panel: Panel
 }) {
   const current = session.assets.find((asset) => asset.id === session.current_asset_id)
   const { data: history = [] } = useSessionHistory(session.id)
   const selectedLayerId = useEditorUi((state) => state.selectedLayerId)
   const selectLayer = useEditorUi((state) => state.selectLayer)
-  const panel = useEditorUi((state) => state.panel)
   const selection = useEditorUi((state) => state.selection)
   const includeText = useEditorUi((state) => state.splitIncludeText)
   const setIncludeText = useEditorUi((state) => state.setSplitIncludeText)
@@ -98,27 +101,33 @@ export default function LayerPanel({
           同时拆出文字
         </label>
         <div className="mb-2.5 flex gap-1">
-          <LayerAction
-            id="split_layers"
+          <Button
+            variant="outline"
+            size="sm"
+            block
             disabled={tools.busy}
-            label="拆层"
-            confirm="确认拆层"
-            title={includeText ? '拆成背景、主体和文字' : '拆成背景和主体'}
-            onConfirm={() => tools.invoke('split_layers', { include_text: includeText })}
-          />
-          <LayerAction
-            id="promote_object_to_layer"
+            progress={tools.isRunning('split_layers') ? tools.pendingProgress : null}
+            title={includeText ? '拆成背景、主体和文字，可撤销' : '拆成背景和主体，可撤销'}
+            onClick={() => tools.invoke('split_layers', { include_text: includeText })}
+          >
+            拆层
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            block
             disabled={tools.busy || !selection}
-            label="成层"
-            confirm="确认成层"
-            title={selection ? '把选区提升为独立图层' : '先点选或涂抹'}
-            onConfirm={() =>
+            progress={tools.isRunning('promote_object_to_layer') ? tools.pendingProgress : null}
+            title={selection ? '把选区提升为独立图层，可撤销' : '先点选或涂抹'}
+            onClick={() =>
               tools.invoke('promote_object_to_layer', {
                 mask_asset_id: selection?.maskId,
                 revision: session.revision,
               })
             }
-          />
+          >
+            成层
+          </Button>
         </div>
         <ul className="space-y-1">
           {[...session.document.layers].reverse().map((layer) => (
@@ -193,49 +202,6 @@ export default function LayerPanel({
   )
 }
 
-function LayerAction({
-  id,
-  disabled,
-  label,
-  confirm,
-  title,
-  onConfirm,
-}: {
-  id: string
-  disabled: boolean
-  label: string
-  confirm: string
-  title: string
-  onConfirm: () => void
-}) {
-  const confirming = useEditorUi((state) => state.confirming)
-  const setConfirming = useEditorUi((state) => state.setConfirming)
-  const armed = confirming === id
-
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      title={armed ? confirm : title}
-      onClick={() => {
-        if (armed) {
-          setConfirming(null)
-          onConfirm()
-          return
-        }
-        setConfirming(id)
-      }}
-      className={`rounded-control flex-1 border py-1.5 text-[11px] font-medium transition-all duration-150 active:scale-95 disabled:opacity-40 ${
-        armed
-          ? 'border-brand bg-brand-soft text-brand-strong'
-          : 'border-line text-muted hover:text-ink hover:bg-soft'
-      }`}
-    >
-      {armed ? confirm : label}
-    </button>
-  )
-}
-
 function LayerRow({
   layer,
   active,
@@ -262,7 +228,7 @@ function LayerRow({
         onClick={onSelect}
         className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
       >
-        <span className="bg-canvas border-line size-8 shrink-0 overflow-hidden rounded-[6px] border">
+        <span className="bg-canvas border-line rounded-chip size-8 shrink-0 overflow-hidden border">
           {thumb ? (
             <img src={thumb.url} alt="" className="size-full object-cover" />
           ) : (
@@ -285,15 +251,16 @@ function LayerRow({
           {Math.round(layer.opacity * 100)}%
         </span>
       </button>
-      <button
-        type="button"
+      <Button
+        variant="icon"
+        size="sm"
         disabled={disabled}
         title={layer.visible ? '隐藏图层' : '显示图层'}
         onClick={onToggleVisible}
-        className="text-muted hover:text-ink mr-1.5 grid size-7 shrink-0 place-items-center rounded-[6px] disabled:opacity-40"
+        className="mr-1.5 shrink-0"
       >
         <EyeIcon open={layer.visible} />
-      </button>
+      </Button>
     </li>
   )
 }
@@ -399,15 +366,16 @@ function LayerControls({
       />
       <div className="grid grid-cols-4 gap-1">
         {(['top', 'up', 'down', 'bottom'] as const).map((place) => (
-          <button
+          <Button
             key={place}
-            type="button"
+            variant="outline"
+            size="sm"
+            block
             disabled={disabled}
             onClick={() => onReorder(place)}
-            className="border-line text-muted hover:text-ink hover:bg-soft rounded-control border py-1 text-[10px] transition-all duration-150 active:scale-95 disabled:opacity-40"
           >
             {REORDER_LABELS[place]}
-          </button>
+          </Button>
         ))}
       </div>
     </div>
@@ -458,26 +426,21 @@ function AdjustForm({
           />
         ))}
         <div className="flex gap-2">
-          <button
-            type="button"
-            disabled={disabled || !touched}
-            onClick={clear}
-            className="border-line text-muted hover:text-ink hover:bg-soft rounded-control flex-1 border py-1.5 text-xs transition-all duration-150 active:scale-[0.98] disabled:opacity-40"
-          >
+          <Button variant="outline" block disabled={disabled || !touched} onClick={clear}>
             重置
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="solid"
+            block
             disabled={disabled || !touched}
-            title={touched ? '写入当前调色' : '先拖动滑杆再应用'}
+            title={touched ? '写入当前调色，可撤销' : '先拖动滑杆再应用'}
             onClick={() => {
               onApply(values)
               clear()
             }}
-            className="bg-ink hover:bg-dark rounded-control flex-1 py-1.5 text-xs font-medium text-white transition-all duration-150 active:scale-[0.98] disabled:opacity-40"
           >
             应用
-          </button>
+          </Button>
         </div>
       </div>
     </Section>
