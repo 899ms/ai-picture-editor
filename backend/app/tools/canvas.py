@@ -23,6 +23,8 @@ from app.tools.context import ToolError, document_of, require_session
 _LAYER = "layer_id"
 # 拖角缩放同时移动中心，位置由界面算好回填，模型只管倍率
 _PLACEMENT = ("x", "y")
+# 多步计划里两次翻转要能分辨先横后竖
+_FLIP_LABELS = {"horizontal": "水平翻转", "vertical": "垂直翻转"}
 
 
 class FlipIn(LayerRef):
@@ -199,7 +201,13 @@ async def crop_canvas(session: AsyncSession, run: ToolRun) -> dict:
 
 
 def _canvas(
-    name: str, label: str, description: str, params, handler, hidden: tuple[str, ...] = ()
+    name: str,
+    label: str,
+    description: str,
+    params,
+    handler,
+    hidden: tuple[str, ...] = (),
+    detail=None,
 ) -> ToolSpec:
     return ToolSpec(
         name=name,
@@ -210,6 +218,7 @@ def _canvas(
         queued=False,
         session_required=True,
         agent_hidden=hidden,
+        detail=detail,
     )
 
 
@@ -226,6 +235,7 @@ FLIP_LAYER = _canvas(
     "水平或垂直翻转指定图层，默认最上层图像。",
     FlipIn,
     flip_layer,
+    detail=lambda params: _FLIP_LABELS.get(params.get("direction")),
 )
 SET_LAYER_OPACITY = _canvas(
     "set_layer_opacity",

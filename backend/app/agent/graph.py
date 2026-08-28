@@ -93,7 +93,7 @@ def spoken(reply: str, plan: list[dict]) -> str:
     if plan:
         if text and text != _FALLBACK_REPLY:
             return text
-        labels = "、".join(label_of(step["tool"]) for step in plan)
+        labels = "、".join(label_of(step["tool"], step.get("params")) for step in plan)
         if len(plan) > 1:
             return f"将按以下步骤执行：{labels}。确认后开始。"
         return f"好，正在{labels}。"

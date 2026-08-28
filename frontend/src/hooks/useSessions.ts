@@ -117,6 +117,16 @@ export function useSessionTools(id: string) {
   const waiting = Boolean(pendingRunId && (!live.status || !isTerminal(live.status)))
   const busy = invoke.isPending || undo.isPending || redo.isPending || waiting
 
+  /**
+   * 当前在跑的是不是这一次调用。工具层同时只跑一个任务，界面据此只给发起的那个按钮
+   * 换进度文案，其余按钮虽然一样禁用，但不会看起来像是也在生成。
+   */
+  const isRunning = (tool: string, match?: (params: Record<string, unknown>) => boolean) => {
+    const pending = invoke.isPending || waiting ? invoke.variables : undefined
+    if (pending?.tool !== tool) return false
+    return match ? match(pending.params ?? {}) : true
+  }
+
   const runHistory = (action: () => void) => {
     if (historyLock.current || busy) return
     historyLock.current = true
@@ -131,6 +141,7 @@ export function useSessionTools(id: string) {
     undo: () => runHistory(() => undo.mutate()),
     redo: () => runHistory(() => redo.mutate()),
     busy,
+    isRunning,
     pendingStage: waiting ? live.stage : '',
     pendingProgress: waiting ? live.progress : 0,
   }

@@ -103,6 +103,13 @@ function Workspace({ sessionId }: { sessionId: string }) {
     setPicked(ids.every((id) => selected.includes(id)) ? [] : ids)
   }
 
+  // 不传 ratios 是「一次三个尺寸」，传了则只跑该比例
+  const deliveryRunning = (ratio?: string) =>
+    tools.isRunning('prepare_delivery_sizes', (params) => {
+      const ratios = params.ratios as string[] | undefined
+      return ratio ? ratios?.[0] === ratio : !ratios
+    })
+
   const download = () =>
     pack.mutate(selected, {
       onSuccess: ({ blob, filename }) => {
@@ -163,6 +170,7 @@ function Workspace({ sessionId }: { sessionId: string }) {
               label={item.label}
               hint={item.hint}
               disabled={tools.busy}
+              running={tools.isRunning('generate_marketing', (params) => params.kind === item.id)}
               onGenerate={() =>
                 tools.invoke('generate_marketing', {
                   kind: item.id,
@@ -186,7 +194,7 @@ function Workspace({ sessionId }: { sessionId: string }) {
             onClick={() => tools.invoke('prepare_delivery_sizes')}
             className="bg-ink hover:bg-dark rounded-control px-3.5 py-2 text-xs font-medium text-white disabled:opacity-40"
           >
-            生成 1:1 / 4:5 / 9:16
+            {deliveryRunning() ? '生成中…' : '生成 1:1 / 4:5 / 9:16'}
           </button>
           {DELIVERY_RATIOS.map((ratio) => (
             <button
@@ -197,7 +205,9 @@ function Workspace({ sessionId }: { sessionId: string }) {
               className="border-line text-muted hover:text-ink rounded-control border px-3 py-2 text-xs disabled:opacity-40"
             >
               {ratio.label}
-              <span className="text-faint ml-1">{ratio.size}</span>
+              <span className="text-faint ml-1">
+                {deliveryRunning(ratio.value) ? '生成中…' : ratio.size}
+              </span>
             </button>
           ))}
         </div>
@@ -213,7 +223,8 @@ function Workspace({ sessionId }: { sessionId: string }) {
         session={session}
         items={items}
         selected={selected}
-        busy={pack.isPending || tools.busy}
+        disabled={pack.isPending || tools.busy}
+        packing={pack.isPending}
         onToggle={toggle}
         onToggleAll={toggleAll}
         onDownload={download}
@@ -270,11 +281,13 @@ function KindCard({
   label,
   hint,
   disabled,
+  running,
   onGenerate,
 }: {
   label: string
   hint: string
   disabled: boolean
+  running: boolean
   onGenerate: () => void
 }) {
   return (
@@ -287,7 +300,7 @@ function KindCard({
         onClick={onGenerate}
         className="border-line text-ink hover:bg-soft rounded-control mt-3 px-3 py-1.5 text-xs font-medium disabled:opacity-40"
       >
-        {disabled ? '生成中…' : '生成'}
+        {running ? '生成中…' : '生成'}
       </button>
     </div>
   )
@@ -297,7 +310,8 @@ function PackList({
   session,
   items,
   selected,
-  busy,
+  disabled,
+  packing,
   onToggle,
   onToggleAll,
   onDownload,
@@ -306,7 +320,8 @@ function PackList({
   session: SessionDetail
   items: Asset[]
   selected: string[]
-  busy: boolean
+  disabled: boolean
+  packing: boolean
   onToggle: (id: string) => void
   onToggleAll: () => void
   onDownload: () => void
@@ -322,7 +337,7 @@ function PackList({
           {items.length > 0 && (
             <button
               type="button"
-              disabled={busy}
+              disabled={disabled}
               onClick={onToggleAll}
               className="border-line text-muted hover:text-ink rounded-control border px-3 py-2 text-xs font-medium disabled:opacity-40"
             >
@@ -331,11 +346,11 @@ function PackList({
           )}
           <button
             type="button"
-            disabled={busy || selected.length === 0}
+            disabled={disabled || selected.length === 0}
             onClick={onDownload}
             className="bg-ink hover:bg-dark rounded-control px-3.5 py-2 text-xs font-medium text-white disabled:opacity-40"
           >
-            {busy ? '处理中…' : `打包 ${selected.length} 张`}
+            {packing ? '处理中…' : `打包 ${selected.length} 张`}
           </button>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import type { Asset } from '@/api/assets'
-import { ApiError, api } from '@/api/client'
+import { api, apiError } from '@/api/client'
 import type { Run } from '@/api/runs'
 
 export type LayerKind = 'image' | 'text' | 'shape'
@@ -147,10 +147,7 @@ async function downloadExport(id: string, asset_ids: string[]): Promise<ExportPa
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ asset_ids }),
   })
-  if (!response.ok) {
-    const detail = await response.json().catch(() => null)
-    throw new ApiError(response.status, detail?.detail ?? '打包失败')
-  }
+  if (!response.ok) throw await apiError(response, '打包失败')
   return { blob: await response.blob(), filename: filenameOf(response.headers.get('Content-Disposition')) }
 }
 

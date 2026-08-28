@@ -5,6 +5,7 @@ import BrandMark from '@/components/BrandMark'
 import { errorMessage, useAuthActions, useCurrentUser } from '@/hooks/useAuth'
 
 type Mode = 'login' | 'register'
+type Rules = { minLength?: number; maxLength?: number; pattern?: string; title?: string }
 
 const COPY: Record<Mode, { title: string; submit: string; switchTo: Mode; switchHint: string }> = {
   login: { title: '登录', submit: '登录', switchTo: 'register', switchHint: '还没有账号？注册' },
@@ -13,6 +14,20 @@ const COPY: Record<Mode, { title: string; submit: string; switchTo: Mode; switch
     submit: '注册并进入',
     switchTo: 'login',
     switchHint: '已有账号？登录',
+  },
+}
+
+// 与后端 Credentials 一致，注册时先在浏览器拦下，不用等一次请求。登录不限长度，老账号也进得来。
+const RULES: Record<Mode, { username: Rules; password: Rules }> = {
+  login: { username: {}, password: {} },
+  register: {
+    username: {
+      minLength: 3,
+      maxLength: 32,
+      pattern: '[\\p{L}\\p{N}_]{3,32}',
+      title: '3–32 位字母、数字或下划线',
+    },
+    password: { minLength: 6, maxLength: 64, title: '6–64 位' },
   },
 }
 
@@ -64,6 +79,7 @@ export default function AuthPage() {
               onChange={setUsername}
               autoComplete="username"
               placeholder="3–32 位字母、数字或下划线"
+              rules={RULES[mode].username}
             />
             <Field
               label="密码"
@@ -72,6 +88,7 @@ export default function AuthPage() {
               onChange={setPassword}
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               placeholder="至少 6 位"
+              rules={RULES[mode].password}
             />
 
             {action.isError && <p className="text-danger text-sm">{errorMessage(action.error)}</p>}
@@ -105,6 +122,7 @@ function Field({
   type = 'text',
   autoComplete,
   placeholder,
+  rules,
 }: {
   label: string
   value: string
@@ -112,6 +130,7 @@ function Field({
   type?: string
   autoComplete?: string
   placeholder?: string
+  rules?: Rules
 }) {
   return (
     <label className="block">
@@ -123,6 +142,7 @@ function Field({
         autoComplete={autoComplete}
         placeholder={placeholder}
         required
+        {...rules}
         className="border-line bg-paper text-ink placeholder:text-faint focus:border-brand rounded-control w-full border px-3.5 py-2.5 text-sm outline-none transition-colors"
       />
     </label>

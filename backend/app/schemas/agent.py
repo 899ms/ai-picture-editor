@@ -37,7 +37,7 @@ class PlanStepOut(BaseModel):
         return cls(
             id=step.get("id") or step["tool"],
             tool=step["tool"],
-            label=label_of(step["tool"]),
+            label=label_of(step["tool"], step.get("params")),
             depends_on=list(step.get("depends_on") or []),
             run_id=uuid.UUID(run_id) if run_id else None,
             status=step.get("status") or ("succeeded" if run_id else "pending"),

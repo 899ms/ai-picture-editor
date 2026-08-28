@@ -53,8 +53,9 @@ def spec_of(name: str) -> ToolSpec:
     return spec
 
 
-def label_of(name: str) -> str:
-    return _BY_NAME[name].label if name in _BY_NAME else name
+def label_of(name: str, params: dict | None = None) -> str:
+    spec = _BY_NAME.get(name)
+    return spec.label_for(params) if spec else name
 
 
 __all__ = ["SPECS", "ToolSpec", "UnknownTool", "label_of", "spec_of"]

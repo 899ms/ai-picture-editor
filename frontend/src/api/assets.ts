@@ -1,4 +1,4 @@
-import { ApiError } from '@/api/client'
+import { ApiError, apiError } from '@/api/client'
 
 export type AssetKind =
   | 'original'
@@ -39,10 +39,7 @@ export const assetsApi = {
     body.append('file', file)
 
     const response = await fetch('/api/assets', { method: 'POST', body })
-    if (!response.ok) {
-      const detail = await response.json().catch(() => null)
-      throw new ApiError(response.status, detail?.detail ?? '上传失败')
-    }
+    if (!response.ok) throw await apiError(response, '上传失败')
     return response.json()
   },
 

@@ -1,5 +1,5 @@
 import type { Asset } from '@/api/assets'
-import { ApiError, api } from '@/api/client'
+import { api, apiError } from '@/api/client'
 import type { Run } from '@/api/runs'
 import type { BatchOp } from '@/lib/batch'
 
@@ -36,10 +36,7 @@ export const batchesApi = {
 
 async function downloadZip(id: string): Promise<ExportPack> {
   const response = await fetch(`/api/batches/${id}/export`)
-  if (!response.ok) {
-    const detail = await response.json().catch(() => null)
-    throw new ApiError(response.status, detail?.detail ?? '打包失败')
-  }
+  if (!response.ok) throw await apiError(response, '打包失败')
   const encoded = /filename\*=(?:UTF-8'')?([^;]+)/i.exec(
     response.headers.get('Content-Disposition') ?? '',
   )

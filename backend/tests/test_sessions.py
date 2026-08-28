@@ -3,6 +3,7 @@ import uuid
 import httpx
 import pytest
 
+from tests.canvas import invoke
 from tests.test_assets import make_image, upload_payload
 
 
@@ -81,6 +82,23 @@ async def test_switching_to_the_same_image_keeps_revision(signed_in: httpx.Async
     ).json()
 
     assert patched["revision"] == 1
+
+
+async def test_picking_the_cropped_image_again_restores_its_full_size(signed_in: httpx.AsyncClient):
+    """裁剪只缩小画布、不换资产，点回这张图应当回到原图画幅。"""
+    session = await open_session(signed_in)
+    cropped = (await invoke(signed_in, session["id"], "crop_canvas", {"ratio": "1:1"}))["session"]
+    assert (cropped["document"]["width"], cropped["document"]["height"]) == (240, 240)
+
+    patched = (
+        await signed_in.patch(
+            f"/api/sessions/{session['id']}",
+            json={"current_asset_id": session["current_asset_id"]},
+        )
+    ).json()
+
+    assert (patched["document"]["width"], patched["document"]["height"]) == (320, 240)
+    assert patched["revision"] == cropped["revision"] + 1
 
 
 async def test_history_records_creation_and_switches(signed_in: httpx.AsyncClient):

@@ -12,9 +12,11 @@ const RATIOS: { value: Ratio; label: string }[] = [
 
 export function BackgroundForm({
   disabled,
+  wallOnly,
   onApply,
 }: {
   disabled: boolean
+  wallOnly: boolean
   onApply: (params: { prompt: string; count: number }) => void
 }) {
   const [prompt, setPrompt] = useState('')
@@ -25,7 +27,9 @@ export function BackgroundForm({
     <section className="border-line border-b px-4 py-4">
       <h2 className="text-muted mb-2.5 text-xs font-medium">换背景</h2>
       <p className="text-faint mb-2.5 text-[11px] leading-relaxed">
-        写出新背景。一张直接上画布；多张进图片墙，点选采用。
+        {wallOnly
+          ? '写出新背景。已拆层，结果拍平成整图只进图片墙，点选采用；画布与图层保持不变。'
+          : '写出新背景。一张直接上画布；多张进图片墙，点选采用。'}
       </p>
       <textarea
         rows={3}
@@ -69,9 +73,11 @@ export function BackgroundForm({
 
 export function ExpandForm({
   disabled,
+  wallOnly,
   onApply,
 }: {
   disabled: boolean
+  wallOnly: boolean
   onApply: (params: { ratio: Ratio }) => void
 }) {
   const [ratio, setRatio] = useState<Ratio>('16:9')
@@ -80,7 +86,9 @@ export function ExpandForm({
     <section className="border-line border-b px-4 py-4">
       <h2 className="text-muted mb-2.5 text-xs font-medium">扩图</h2>
       <p className="text-faint mb-2.5 text-[11px] leading-relaxed">
-        扩展到目标比例，主体保留在画面中。
+        {wallOnly
+          ? '扩展到目标比例，主体保留在画面中。已拆层，结果只进图片墙，点选采用；画布与图层保持不变。'
+          : '扩展到目标比例，主体保留在画面中，完成后写回画布。'}
       </p>
       <div className="grid grid-cols-5 gap-1">
         {RATIOS.map((item) => (

@@ -16,7 +16,8 @@ export default function EditorPage() {
   const { sessionId = '' } = useParams()
 
   return (
-    <div className="flex h-full">
+    // 编辑器自成一屏：不让工具条或画布把外层 main 撑出滚动条，否则画布会被滚出视口
+    <div className="flex h-full overflow-hidden">
       <SessionSidebar activeId={sessionId} />
       {sessionId ? (
         <Workspace sessionId={sessionId} />

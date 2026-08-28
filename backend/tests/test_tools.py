@@ -221,10 +221,13 @@ async def test_replace_background_candidates_stay_on_the_wall(signed_in: httpx.A
     await run_tool({}, uuid.UUID(body["run"]["id"]))
     updated = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
     generated = [asset for asset in updated["assets"] if asset["kind"] == "generated"]
+    entries = (await signed_in.get(f"/api/sessions/{session['id']}/history")).json()
 
     assert updated["current_asset_id"] == session["current_asset_id"]
     assert updated["revision"] == 1
     assert len(generated) == 2
+    # 画布没变所以修订号不涨，但这次生成要出现在编辑记录里
+    assert [entry["action"] for entry in entries] == ["replace_background", "create_session"]
 
 
 async def test_expand_canvas_grows_to_cover_ratio(signed_in: httpx.AsyncClient):
@@ -240,6 +243,21 @@ async def test_expand_canvas_grows_to_cover_ratio(signed_in: httpx.AsyncClient):
     assert updated["current_asset_id"] != session["current_asset_id"]
     assert (updated["document"]["width"], updated["document"]["height"]) == (426, 240)
     assert (current["width"], current["height"]) == (426, 240)
+
+
+async def test_expanding_a_split_canvas_only_fills_the_wall(signed_in: httpx.AsyncClient):
+    """已拆层时扩图不写回画布，但编辑记录要能对上图片墙里多出来的那张。"""
+    session = await open_session(signed_in, image=scene())
+    split = await apply(signed_in, session["id"], "split_layers")
+
+    body = await invoke(signed_in, session["id"], "expand_canvas", {"ratio": "16:9"})
+    await run_tool({}, uuid.UUID(body["run"]["id"]))
+    updated = (await signed_in.get(f"/api/sessions/{session['id']}")).json()
+    entries = (await signed_in.get(f"/api/sessions/{session['id']}/history")).json()
+
+    assert updated["document"] == split["document"]
+    assert updated["revision"] == split["revision"]
+    assert entries[0]["action"] == "expand_canvas"
 
 
 async def test_upscale_image_raises_resolution(signed_in: httpx.AsyncClient):

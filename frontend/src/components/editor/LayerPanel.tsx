@@ -5,6 +5,7 @@ import { ACTION_LABELS, type Layer, type SessionDetail } from '@/api/sessions'
 import { BackgroundForm, ExpandForm, ReplaceForm } from '@/components/editor/GenerateEdits'
 import { useSessionHistory, type SessionTools } from '@/hooks/useSessions'
 import { formatBytes, formatDateTime } from '@/lib/format'
+import { wallOnly } from '@/lib/layers'
 import { useEditorUi } from '@/stores/editorUi'
 
 const ADJUST_FIELDS: { key: string; label: string; min?: number }[] = [
@@ -46,6 +47,7 @@ export default function LayerPanel({
   const selected =
     session.document.layers.find((layer) => layer.id === selectedLayerId) ??
     session.document.layers.at(-1)
+  const onlyToWall = wallOnly(session.document)
 
   return (
     <aside className="border-line bg-paper scrollbar-slim h-full w-72 shrink-0 overflow-y-auto border-l">
@@ -60,12 +62,14 @@ export default function LayerPanel({
       {panel === 'background' && (
         <BackgroundForm
           disabled={tools.busy}
+          wallOnly={onlyToWall}
           onApply={(params) => tools.invoke('replace_background', params)}
         />
       )}
       {panel === 'expand' && (
         <ExpandForm
           disabled={tools.busy}
+          wallOnly={onlyToWall}
           onApply={(params) => tools.invoke('expand_canvas', params)}
         />
       )}

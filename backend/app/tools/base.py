@@ -54,3 +54,9 @@ class ToolSpec:
     session_required: bool = False
     # 素材 ID、随机种子这类参数应由服务端从上下文填入，不暴露给模型
     agent_hidden: tuple[str, ...] = field(default_factory=tuple)
+    # 同一工具按参数细分说法，例如翻转要分水平与垂直，返回 None 则用 label
+    detail: Callable[[dict], str | None] | None = None
+
+    def label_for(self, params: dict | None = None) -> str:
+        refined = self.detail(params or {}) if self.detail else None
+        return refined or self.label

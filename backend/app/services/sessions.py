@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.layers import LayerDocument, document_of
+from app.layers import BASE_LAYER_ID, LayerDocument, document_of
 from app.models import Asset, EditHistory, EditSession, SessionAsset
 from app.models.edit_history import HISTORY_LIMIT
 
@@ -44,13 +44,15 @@ async def _next_position(session: AsyncSession, session_id: uuid.UUID) -> int:
     return (last or 0) + 1
 
 
-async def _attach(session: AsyncSession, record: EditSession, assets: Iterable[Asset]) -> None:
+async def _attach(session: AsyncSession, record: EditSession, assets: Iterable[Asset]) -> int:
+    """把资产挂进会话图片墙，返回新挂上的数量。"""
     known = set(
         await session.scalars(
             select(SessionAsset.asset_id).where(SessionAsset.session_id == record.id)
         )
     )
     position = await _next_position(session, record.id)
+    added = 0
 
     for asset in assets:
         if asset.id in known:
@@ -58,6 +60,8 @@ async def _attach(session: AsyncSession, record: EditSession, assets: Iterable[A
         session.add(SessionAsset(session_id=record.id, asset_id=asset.id, position=position))
         known.add(asset.id)
         position += 1
+        added += 1
+    return added
 
 
 async def _entry(session: AsyncSession, record: EditSession, seq: int) -> EditHistory | None:
@@ -132,8 +136,9 @@ async def apply_edit(
             next_document = payload
             changed = True
 
-    await _attach(session, record, extra_assets)
-    if not changed:
+    # 结果只进图片墙时画布没变，但仍要留一条记录，否则用户在编辑记录里找不到这次生成
+    attached = await _attach(session, record, extra_assets)
+    if not changed and not attached:
         await session.commit()
         await session.refresh(record)
         return record
@@ -291,16 +296,34 @@ async def rename(session: AsyncSession, record: EditSession, title: str) -> Edit
 
 async def switch_current(session: AsyncSession, record: EditSession, asset: Asset) -> EditSession:
     """切换画布当前图。修订号递增，使旧修订号上的选区与遮罩失效。"""
+    document = await _last_document_for(session, record, asset.id)
+    if _cropped_base(document, asset):
+        document = document_of(asset)
+
     if record.current_asset_id == asset.id:
-        return record
+        # 裁剪不换资产，点自己等于要回到原图画幅；画布没被裁过则什么都不用做
+        if not _cropped_base(LayerDocument.model_validate(record.document), asset):
+            return record
+        document = document_of(asset)
+
     return await apply_edit(
         session,
         record,
         "switch_current",
         current=asset,
-        document=await _last_document_for(session, record, asset.id),
+        document=document,
         extra_assets=[asset],
     )
+
+
+def _cropped_base(document: LayerDocument | None, asset: Asset) -> bool:
+    """裁剪只缩小画布、不换资产。这类文档下点回这张图，应当是要它的原生画幅。"""
+    if document is None or len(document.layers) != 1:
+        return False
+    layer = document.layers[0]
+    if layer.id != BASE_LAYER_ID or layer.asset_id != asset.id:
+        return False
+    return document.width < asset.width or document.height < asset.height
 
 
 def _document_for(state: dict | None, asset_id: str) -> LayerDocument | None:

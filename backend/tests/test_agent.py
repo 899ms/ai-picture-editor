@@ -272,6 +272,21 @@ async def test_multi_step_plan_waits_for_confirm(signed_in: httpx.AsyncClient, f
     assert session["document"]["layers"][0]["transform"]["scale_x"] == 1
 
 
+async def test_flip_steps_show_their_direction(signed_in: httpx.AsyncClient, fake_planner):
+    fake_planner(
+        tool_calls(
+            ("flip_layer", {"direction": "horizontal"}),
+            ("flip_layer", {"direction": "vertical"}),
+        )
+    )
+    session_id = (await open_session(signed_in))["id"]
+
+    turn = await send(signed_in, session_id, "水平翻转再垂直翻转")
+
+    assert [step["label"] for step in turn["steps"]] == ["水平翻转", "垂直翻转"]
+    assert "水平翻转、垂直翻转" in turn["reply"]
+
+
 async def test_confirm_runs_dependent_steps_in_order(signed_in: httpx.AsyncClient, fake_planner):
     fake_planner(
         tool_calls(

@@ -17,6 +17,8 @@ type Viewport = { scale: number; x: number; y: number }
 
 type CanvasViewState = Viewport & {
   viewport: Size
+  // 视口还没量出来时排队的适应请求，量到之后立刻补上
+  awaitingFit: Size | null
   setViewport: (viewport: Size) => void
   fit: (document: Size, options?: { animate?: boolean }) => void
   zoomBy: (factor: number, anchor?: Point) => void
@@ -62,24 +64,31 @@ export const useCanvasView = create<CanvasViewState>((set, get) => ({
   x: 0,
   y: 0,
   viewport: { width: 0, height: 0 },
+  awaitingFit: null,
 
   // 视口尺寸变化时锚住画面中心，面板开合或窗口缩放都不会让画布跳位
   setViewport: (next) => {
-    const { viewport, x, y } = get()
+    const { viewport, x, y, awaitingFit } = get()
+    const ready = Boolean(next.width && next.height)
     const grown = {
       width: next.width - viewport.width,
       height: next.height - viewport.height,
     }
     if (!viewport.width || !viewport.height || (!grown.width && !grown.height)) {
       set({ viewport: next })
-      return
+    } else {
+      set({ viewport: next, x: x + grown.width / 2, y: y + grown.height / 2 })
     }
-    set({ viewport: next, x: x + grown.width / 2, y: y + grown.height / 2 })
+    if (ready && awaitingFit) get().fit(awaitingFit, { animate: false })
   },
 
   fit: (document, options) => {
     const { viewport, scale, x, y } = get()
-    if (!viewport.width || !viewport.height) return
+    // 视口还没量出来就先记下来，等 setViewport 拿到真实尺寸再适应
+    if (!viewport.width || !viewport.height) {
+      set({ awaitingFit: document })
+      return
+    }
 
     const next = clamp(
       Math.min(viewport.width / document.width, viewport.height / document.height) * FIT_RATIO,
@@ -92,9 +101,10 @@ export const useCanvasView = create<CanvasViewState>((set, get) => ({
 
     stopGlide()
     if (options?.animate === false) {
-      set(target)
+      set({ ...target, awaitingFit: null })
       return
     }
+    set({ awaitingFit: null })
     glide(set, { scale, x, y }, target)
   },
 

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import type { SessionDetail } from '@/api/sessions'
 import type { SessionSelection } from '@/hooks/useSelection'
 import type { SessionTools } from '@/hooks/useSessions'
+import { wallOnly } from '@/lib/layers'
 import { ZOOM_STEP, useCanvasView } from '@/stores/canvasView'
 import { useEditorUi, type CropRatio } from '@/stores/editorUi'
 
@@ -46,7 +47,7 @@ export default function EditorToolbar({
   }
 
   return (
-    <header className="border-line bg-paper flex h-14 shrink-0 items-center gap-2 border-b px-3">
+    <header className="border-line bg-paper scrollbar-slim flex h-14 shrink-0 items-center gap-2 overflow-x-auto border-b px-3">
       <TitleField value={session.title} onCommit={onRename} />
 
       <span className="text-faint hidden shrink-0 text-xs tabular-nums sm:block">
@@ -194,7 +195,11 @@ export default function EditorToolbar({
             </ToolButton>
             <ToolButton
               disabled={tools.busy}
-              title="把当前画布放大到两倍"
+              title={
+                wallOnly(session.document)
+                  ? '放大到两倍，已拆层所以结果只进图片墙'
+                  : '把当前画布放大到两倍'
+              }
               onClick={() => tools.invoke('upscale_image', { scale: 2 })}
             >
               超分
