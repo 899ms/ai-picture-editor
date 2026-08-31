@@ -59,7 +59,7 @@ docker compose --profile deploy exec app alembic upgrade head
 cd backend && uv sync --all-extras --group dev && uv run pytest
 cd frontend && npm install && npx tsc --noEmit
 
-cd backend && uv run python -m app.eval /path/to/dataset
+cd backend && uv run python -m app.eval app/eval/dataset
 ```
 
-评测目录需包含 `cases.json` 与素材，格式见 `backend/app/eval/cases.example.json`。素材由你自行提供，不入库。
+仓库自带一份无线耳机评测集（抠图、调色、交付尺寸）。自己加用例时按 `backend/app/eval/cases.example.json` 的格式准备 `cases.json` 和素材即可。

@@ -16,7 +16,7 @@ def main(argv: list[str] | None = None) -> int:
         results = evaluate(root)
     except (FileNotFoundError, ValueError) as exc:
         print(exc, file=sys.stderr)
-        print("用例格式见 backend/app/eval/cases.example.json", file=sys.stderr)
+        print("可直接跑自带评测集：uv run python -m app.eval app/eval/dataset", file=sys.stderr)
         return 2
     print(render(results))
     return 0 if all(result.ok for result in results) else 1

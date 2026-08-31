@@ -30,7 +30,7 @@ class Case(BaseModel):
 def load_cases(root: Path) -> list[Case]:
     path = root / "cases.json"
     if not path.is_file():
-        raise FileNotFoundError(f"未找到 {path}，可参考 app/eval/cases.example.json")
+        raise FileNotFoundError(f"未找到 {path}，可参考 app/eval/dataset 或 cases.example.json")
     raw = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, list) or not raw:
         raise ValueError("cases.json 须为非空数组")
