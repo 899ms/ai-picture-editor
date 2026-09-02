@@ -160,6 +160,7 @@ function Workspace({ sessionId }: { sessionId: string }) {
               onScale={(layer_id, scale, x, y) =>
                 tools.invoke('scale_layer', { layer_id, scale_x: scale, scale_y: scale, x, y })
               }
+              onEditText={(layer_id, text) => tools.invoke('set_layer_text', { layer_id, text })}
             />
             <CanvasHint
               {...canvasHint({

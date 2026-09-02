@@ -10,6 +10,7 @@ const SECONDS: Record<string, number> = {
   scale_layer: 0.8,
   set_layer_opacity: 0.8,
   set_layer_visible: 0.8,
+  set_layer_text: 0.8,
   reorder_layer: 0.8,
   adjust_image: 2,
   prepare_delivery_sizes: 8,

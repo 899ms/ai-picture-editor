@@ -1,4 +1,4 @@
-from app.layers import LayerDocument, resolve_layer
+from app.layers import LayerDocument, LayerKind, LayerMissing, resolve_layer
 from app.ratios import Ratio, parts_of
 
 MIN_CROP = 32
@@ -29,6 +29,38 @@ def set_visible(document: LayerDocument, layer_id: str | None, visible: bool) ->
     doc = document.model_copy(deep=True)
     resolve_layer(doc, layer_id).visible = visible
     return doc
+
+
+def set_text(
+    document: LayerDocument,
+    layer_id: str | None,
+    text: str,
+    *,
+    font_size: float | None = None,
+    fill: str | None = None,
+) -> LayerDocument:
+    """改文字层文案，可选字号与颜色。未指定时取最上层可见文字层。"""
+    doc = document.model_copy(deep=True)
+    layer = _resolve_text(doc, layer_id)
+    layer.text = text
+    layer.name = text[:12] or layer.name
+    if font_size is not None:
+        layer.font_size = font_size
+    if fill is not None:
+        layer.fill = fill
+    return doc
+
+
+def _resolve_text(document: LayerDocument, layer_id: str | None):
+    if layer_id:
+        layer = resolve_layer(document, layer_id)
+        if layer.kind is not LayerKind.TEXT:
+            raise EditError("只能改文字图层的文案")
+        return layer
+    for layer in reversed(document.layers):
+        if layer.kind is LayerKind.TEXT and layer.visible:
+            return layer
+    raise LayerMissing("没有可编辑的文字图层")
 
 
 def scale(
@@ -174,5 +206,6 @@ __all__ = [
     "rotate",
     "scale",
     "set_opacity",
+    "set_text",
     "set_visible",
 ]

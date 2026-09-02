@@ -10,6 +10,7 @@ from app.tools.canvas import (
     ROTATE_LAYER,
     SCALE_LAYER,
     SET_LAYER_OPACITY,
+    SET_LAYER_TEXT,
     SET_LAYER_VISIBLE,
 )
 from app.tools.enhance import EXPAND_CANVAS, REPLACE_BACKGROUND, UPSCALE_IMAGE
@@ -37,6 +38,7 @@ SPECS: tuple[ToolSpec, ...] = (
     FLIP_LAYER,
     SET_LAYER_OPACITY,
     SET_LAYER_VISIBLE,
+    SET_LAYER_TEXT,
     REORDER_LAYER,
     SCALE_LAYER,
     ROTATE_LAYER,

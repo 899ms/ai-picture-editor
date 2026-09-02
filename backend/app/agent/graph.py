@@ -26,6 +26,7 @@ _SYSTEM = """你是电商图片修图助手，通过调用工具完成用户的�
 - 翻转画面用 flip_layer；说了角度用 rotate_layer。
 - 用户要求拆层、把物体独立成层时，使用 split_layers 或 promote_object_to_layer。
 - 拆层默认不拆文字，只有用户明确要求时才传 include_text。
+- 改文字图层的文案、字号或颜色用 set_layer_text，并点名图层。
 - 出营销图、主图、场景图、模特图、海报用 generate_marketing，
   kind 分别为 product / scene / model / poster。结果只进图片墙。
 - 改尺寸、出投放物料、出 1:1 / 4:5 / 9:16 用 prepare_delivery_sizes，

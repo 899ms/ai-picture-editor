@@ -51,6 +51,15 @@ async def test_opacity_and_scale_and_rotate(signed_in: httpx.AsyncClient):
     assert layer["transform"]["rotation"] == 15
 
 
+async def test_set_layer_text_requires_a_text_layer(signed_in: httpx.AsyncClient):
+    session_id = (await open_session(signed_in))["id"]
+
+    body = await invoke(signed_in, session_id, "set_layer_text", {"text": "新品"})
+
+    assert body["run"]["status"] == "failed"
+    assert "文字" in (body["run"]["error"] or "")
+
+
 async def test_set_layer_visible_hides_and_shows(signed_in: httpx.AsyncClient):
     session_id = (await open_session(signed_in))["id"]
 

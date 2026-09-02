@@ -93,6 +93,7 @@ export const ACTION_LABELS: Record<string, string> = {
   flip_layer: '翻转',
   set_layer_opacity: '透明度',
   set_layer_visible: '显隐',
+  set_layer_text: '改文字',
   reorder_layer: '图层顺序',
   scale_layer: '缩放',
   rotate_layer: '旋转',

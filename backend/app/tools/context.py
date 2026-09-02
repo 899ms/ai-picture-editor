@@ -31,6 +31,7 @@ async def flatten_session(
     record: EditSession,
     *,
     background: tuple[int, int, int, int] = WHITE,
+    include_text: bool = True,
 ) -> bytes:
     """把当前文档拍平为 PNG，再交给像素工具。"""
     document = document_of(record)
@@ -42,4 +43,4 @@ async def flatten_session(
         if asset is None:
             continue
         images[asset.id] = await storage.get(asset.storage_key)
-    return flatten(document, images, background=background)
+    return flatten(document, images, background=background, include_text=include_text)

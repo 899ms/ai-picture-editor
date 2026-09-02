@@ -21,6 +21,7 @@ from app.edits.split import (
     mask_hash,
     promote_document,
     punch,
+    remove_text,
     split_document,
 )
 from app.layers import BACKGROUND_LAYER_ID, LayerKind
@@ -80,6 +81,11 @@ async def split_layers_exec(session: AsyncSession, run: ToolRun) -> dict:
     if run.params.get("include_text"):
         await runs.report(session, run, 80, "识别文字")
         texts = await asyncio.to_thread(detect_text, source)
+        if texts:
+            size = Image.open(io.BytesIO(source)).size
+            subject, background = await asyncio.to_thread(
+                remove_text, subject, background, texts, size
+            )
 
     subject_asset = await _store(session, run, subject, AssetKind.SUBJECT)
     background_asset = await _store(session, run, background, AssetKind.BACKGROUND)
@@ -111,7 +117,7 @@ async def promote_object_exec(session: AsyncSession, run: ToolRun) -> dict:
         return {"document": document.model_dump(mode="json")}
 
     await runs.report(session, run, 20, "读取选区")
-    source = await flatten_session(session, record)
+    source = await flatten_session(session, record, include_text=False)
     try:
         cut, left, top, width, height = cut_object(source, mask)
     except EmptyCut as exc:

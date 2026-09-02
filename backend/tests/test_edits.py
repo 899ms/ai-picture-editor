@@ -1,9 +1,11 @@
 import uuid
 from io import BytesIO
 
+import pytest
 from PIL import Image
 
 from app.edits.document import (
+    EditError,
     crop,
     flip,
     move,
@@ -11,9 +13,10 @@ from app.edits.document import (
     rotate,
     scale,
     set_opacity,
+    set_text,
     set_visible,
 )
-from app.edits.mask import apply_masked, overlay_png, rasterize_strokes
+from app.edits.mask import apply_masked, overlay_png, rasterize_strokes, to_luma
 from app.edits.ocr import TextBox
 from app.edits.pixels import adjust, remove_background
 from app.edits.render import TRANSPARENT, flatten
@@ -25,7 +28,9 @@ from app.edits.split import (
     fill_background,
     mask_hash,
     punch,
+    remove_text,
     split_document,
+    text_mask,
 )
 from app.layers import (
     BACKGROUND_LAYER_ID,
@@ -34,6 +39,7 @@ from app.layers import (
     Layer,
     LayerDocument,
     LayerKind,
+    LayerMissing,
     Transform,
 )
 from app.providers.dashscope import _fit_edit_size
@@ -255,6 +261,128 @@ def test_punch_clears_masked_pixels_and_keeps_the_rest():
 
     assert result.getpixel((4, 4))[3] == 0
     assert result.getpixel((40, 40))[:3] == (10, 20, 30)
+
+
+def test_text_mask_covers_boxes():
+    luma = to_luma(text_mask((40, 30), [TextBox("A", 4, 6, 10, 8)], grow=0))
+
+    assert luma.getpixel((8, 10)) == 255
+    assert luma.getpixel((0, 0)) == 0
+
+
+def test_remove_text_punches_subject_and_keeps_background_opaque():
+    size = (48, 48)
+    next_subject, next_bg = remove_text(
+        _png((10, 20, 30, 255), size),
+        _png((200, 180, 40, 255), size),
+        [TextBox("A", 0, 0, 12, 12)],
+        size,
+    )
+
+    punched = Image.open(BytesIO(next_subject))
+    filled = Image.open(BytesIO(next_bg))
+    assert punched.getpixel((4, 4))[3] == 0
+    assert punched.getpixel((40, 40))[:3] == (10, 20, 30)
+    assert filled.getpixel((4, 4))[3] == 255
+    assert filled.getpixel((40, 40))[:3] == (200, 180, 40)
+
+
+def _text_doc() -> LayerDocument:
+    return LayerDocument(
+        width=80,
+        height=60,
+        layers=[
+            Layer(id=BASE_LAYER_ID, kind=LayerKind.IMAGE, name="底图", width=80, height=60),
+            Layer(
+                id="text-1",
+                kind=LayerKind.TEXT,
+                name="夏日",
+                width=40,
+                height=16,
+                text="夏日",
+                font_size=14,
+                fill="#141414",
+            ),
+        ],
+    )
+
+
+def test_set_text_updates_copy_and_name():
+    document = _text_doc()
+
+    updated = set_text(document, "text-1", "新品上市", font_size=18, fill="#ff0000")
+    layer = updated.layers[-1]
+
+    assert layer.text == "新品上市"
+    assert layer.name == "新品上市"
+    assert layer.font_size == 18
+    assert layer.fill == "#ff0000"
+    assert document.layers[-1].text == "夏日"
+
+
+def test_set_text_defaults_to_top_visible_text_layer():
+    assert set_text(_text_doc(), None, "新品").layers[-1].text == "新品"
+
+
+def test_set_text_rejects_image_layers():
+    with pytest.raises(EditError):
+        set_text(_doc(), "base", "hello")
+    with pytest.raises(LayerMissing):
+        set_text(_doc(), None, "hello")
+
+
+def test_flatten_draws_text_layers():
+    document = LayerDocument(
+        width=80,
+        height=80,
+        layers=[
+            Layer(
+                id="text-1",
+                kind=LayerKind.TEXT,
+                name="Hi",
+                width=70,
+                height=40,
+                transform=Transform(x=5, y=20),
+                text="Hi",
+                font_size=28,
+                fill="#000000",
+            )
+        ],
+    )
+
+    flat = Image.open(BytesIO(flatten(document, {})))
+    pixels = [flat.getpixel((x, y))[:3] for y in range(80) for x in range(80)]
+
+    assert any(pixel != (255, 255, 255) for pixel in pixels)
+
+    skipped = Image.open(BytesIO(flatten(document, {}, include_text=False)))
+    assert all(
+        skipped.getpixel((x, y))[:3] == (255, 255, 255) for y in range(80) for x in range(80)
+    )
+
+
+def test_flatten_empty_text_does_not_draw_layer_name():
+    document = LayerDocument(
+        width=80,
+        height=80,
+        layers=[
+            Layer(
+                id="text-1",
+                kind=LayerKind.TEXT,
+                name="Hi",
+                width=70,
+                height=40,
+                transform=Transform(x=5, y=20),
+                text="",
+                font_size=28,
+                fill="#000000",
+            )
+        ],
+    )
+
+    flat = Image.open(BytesIO(flatten(document, {})))
+
+    assert all(flat.getpixel((x, y))[:3] == (255, 255, 255) for y in range(80) for x in range(80))
 
 
 def test_split_document_is_background_subject_and_text():

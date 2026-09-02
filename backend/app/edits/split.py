@@ -1,7 +1,7 @@
 import hashlib
 import io
 
-from PIL import Image, ImageChops, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 from app.edits.mask import overlay_png, to_luma
 from app.edits.ocr import TextBox
@@ -79,6 +79,31 @@ def punch(source: bytes, mask: bytes, *, x: float = 0, y: float = 0) -> bytes:
     keep = ImageChops.invert(local)
     image.putalpha(ImageChops.multiply(image.getchannel("A"), keep))
     return _png(image)
+
+
+def text_mask(size: tuple[int, int], boxes: list[TextBox], *, grow: int | None = None) -> bytes:
+    """把文字框画成画布遮罩，略外扩以免边缘残留。"""
+    mask = Image.new("L", size, 0)
+    draw = ImageDraw.Draw(mask)
+    for box in boxes:
+        draw.rectangle((box.x, box.y, box.x + box.width, box.y + box.height), fill=255)
+    radius = 3 if grow is None else grow
+    if radius > 0:
+        mask = mask.filter(ImageFilter.MaxFilter(radius * 2 + 1))
+    return overlay_png(mask)
+
+
+def remove_text(
+    subject: bytes,
+    background: bytes,
+    boxes: list[TextBox],
+    size: tuple[int, int],
+) -> tuple[bytes, bytes]:
+    """主体挖空文字，背景用周围色填上，避免矢量字叠在原像素上。"""
+    if not boxes:
+        return subject, background
+    hole = text_mask(size, boxes)
+    return punch(subject, hole), fill_background(background, hole)
 
 
 def alpha_mask(data: bytes) -> bytes:

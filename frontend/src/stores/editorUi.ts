@@ -22,6 +22,9 @@ export type LayerPreview = {
   rotation?: number
   x?: number
   y?: number
+  font_size?: number
+  fill?: string
+  text?: string
 }
 
 export type Panel = 'layers' | 'adjust' | 'background' | 'expand' | 'replace' | null
@@ -151,5 +154,13 @@ export const useEditorUi = create<EditorUi>((set) => ({
 
   setAdjustPreview: (adjustPreview) => set({ adjustPreview }),
 
-  setLayerPreview: (layerPreview) => set({ layerPreview }),
+  setLayerPreview: (layerPreview) =>
+    set((state) => {
+      if (layerPreview == null) return { layerPreview: null }
+      const prev = state.layerPreview
+      if (prev && prev.id === layerPreview.id) {
+        return { layerPreview: { ...prev, ...layerPreview } }
+      }
+      return { layerPreview }
+    }),
 }))

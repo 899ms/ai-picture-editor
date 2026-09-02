@@ -37,6 +37,7 @@ export default function CanvasStage({
   onStroke,
   onMove,
   onScale,
+  onEditText,
 }: {
   document: LayerDocument
   previous: LayerDocument | null
@@ -46,6 +47,7 @@ export default function CanvasStage({
   onStroke?: (points: { x: number; y: number }[]) => void
   onMove?: (layerId: string, x: number, y: number) => void
   onScale?: (layerId: string, scale: number, x: number, y: number) => void
+  onEditText?: (layerId: string, text: string) => void
 }) {
   const [containerRef, size] = useElementSize<HTMLDivElement>()
   const scale = useCanvasView((state) => state.scale)
@@ -75,8 +77,16 @@ export default function CanvasStage({
   const shownRef = useRef(shown)
   const [ghost, setGhost] = useState<GhostFrame | null>(null)
   const [ghostOpacity, setGhostOpacity] = useState(0)
+  const [holdingStage, setHoldingStage] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const stroke = useSelectStroke()
   const point = usePointPreview(canvas, images)
+  const editing = editingId
+    ? (canvas.layers.find((layer) => layer.id === editingId && layer.kind === 'text') ?? null)
+    : null
+  const selecting = Boolean(selectMode)
+  const interactive = !selecting && !cropOpen && !compareOpen
+  const stageDraggable = !cropOpen && !selecting && !holdingStage
 
   const settleOverlay = useCallback(() => {
     stroke.settle()
@@ -91,11 +101,15 @@ export default function CanvasStage({
     if (selectMode !== 'point') point.settle()
   }, [selectMode, point.settle])
 
+  useEffect(() => {
+    if (!interactive) setEditingId(null)
+  }, [interactive])
+
+  useEffect(() => {
+    if (editingId && !editing) setEditingId(null)
+  }, [editingId, editing])
+
   const fitted = useRef('')
-  const [holdingStage, setHoldingStage] = useState(false)
-  const selecting = Boolean(selectMode)
-  const interactive = !selecting && !cropOpen && !compareOpen
-  const stageDraggable = !cropOpen && !selecting && !holdingStage
 
   const canvasPoint = (stage: Konva.Stage | null) => {
     const pointer = stage?.getRelativePointerPosition()
@@ -185,8 +199,9 @@ export default function CanvasStage({
           if (event.target !== event.target.getStage()) return
           pan({ x: event.target.x(), y: event.target.y() })
         }}
-        onDblClick={() => {
-          if (!selecting) fit(canvas)
+        onDblClick={(event) => {
+          if (selecting || event.target !== event.target.getStage()) return
+          fit(canvas)
         }}
         onWheel={(event) => {
           event.evt.preventDefault()
@@ -231,9 +246,11 @@ export default function CanvasStage({
             stageDraggable={stageDraggable}
             viewScale={scale}
             selectedId={selectedLayerId}
+            editingId={editingId}
             onSelect={selectLayer}
             onMove={onMove}
             onScale={onScale}
+            onEdit={interactive ? setEditingId : undefined}
             onHoldStage={setHoldingStage}
           />
         )}
@@ -265,6 +282,17 @@ export default function CanvasStage({
           />
         )}
       </Stage>
+      {editing && (
+        <TextEditor
+          layer={editing}
+          view={{ scale, x, y }}
+          onCommit={(text) => {
+            setEditingId(null)
+            if (text !== (editing.text || '')) onEditText?.(editing.id, text)
+          }}
+          onCancel={() => setEditingId(null)}
+        />
+      )}
       {ghost && (
         <CanvasGhost
           key={canvasStamp(ghost.document)}
@@ -380,9 +408,11 @@ function DocumentLayer({
   stageDraggable = false,
   viewScale = 1,
   selectedId = null,
+  editingId = null,
   onSelect,
   onMove,
   onScale,
+  onEdit,
   onHoldStage,
 }: {
   document: LayerDocument
@@ -394,9 +424,11 @@ function DocumentLayer({
   stageDraggable?: boolean
   viewScale?: number
   selectedId?: string | null
+  editingId?: string | null
   onSelect?: (id: string) => void
   onMove?: (layerId: string, x: number, y: number) => void
   onScale?: (layerId: string, scale: number, x: number, y: number) => void
+  onEdit?: (id: string) => void
   onHoldStage?: (held: boolean) => void
 }) {
   const { selectedNode, register } = useLayerNodes(selectedId)
@@ -441,8 +473,10 @@ function DocumentLayer({
             interactive={interactive}
             stageDraggable={stageDraggable}
             selected={selectedId === layer.id}
+            editing={editingId === layer.id}
             onSelect={onSelect}
             onMove={onMove}
+            onEdit={onEdit}
             onHoldStage={onHoldStage}
             onRegister={register}
           />
@@ -464,7 +498,7 @@ function DocumentLayer({
           />
         ) : null,
       )}
-      {interactive && selected && selectedNode && (
+      {interactive && selected && selectedNode && editingId !== selected.id && (
         <LayerScaler
           node={selectedNode}
           layer={selected}
@@ -488,8 +522,10 @@ function TextLayer({
   interactive = false,
   stageDraggable = false,
   selected = false,
+  editing = false,
   onSelect,
   onMove,
+  onEdit,
   onHoldStage,
   onRegister,
 }: {
@@ -499,12 +535,14 @@ function TextLayer({
   interactive?: boolean
   stageDraggable?: boolean
   selected?: boolean
+  editing?: boolean
   onSelect?: (id: string) => void
   onMove?: (layerId: string, x: number, y: number) => void
+  onEdit?: (id: string) => void
   onHoldStage?: (held: boolean) => void
   onRegister?: (id: string, node: Konva.Node | null) => void
 }) {
-  const drag = useLayerInteract(layer, interactive, stageDraggable, onSelect, onMove, onHoldStage)
+  const drag = useLayerInteract(layer, interactive && !editing, stageDraggable, onSelect, onMove, onHoldStage)
   const { setRef } = useLayerNode(layer.id, onRegister)
   const { transform } = layer
   const point = layerPoint(layer, preview, drag.drop, pinned)
@@ -513,25 +551,95 @@ function TextLayer({
   return (
     <Text
       ref={setRef}
-      text={layer.text || layer.name}
+      text={preview?.text ?? layer.text ?? layer.name}
       x={point.x}
       y={point.y}
       offsetX={layer.width / 2}
       offsetY={layer.height / 2}
       width={layer.width}
       height={layer.height}
-      fontSize={layer.font_size ?? Math.max(12, layer.height * 0.72)}
-      fill={layer.fill ?? '#141414'}
+      fontSize={preview?.font_size ?? layer.font_size ?? Math.max(12, layer.height * 0.72)}
+      fill={preview?.fill ?? layer.fill ?? '#141414'}
       align="center"
       verticalAlign="middle"
       scaleX={sized.x}
       scaleY={sized.y}
       rotation={preview?.rotation ?? transform.rotation}
-      opacity={preview?.opacity ?? layer.opacity}
+      opacity={editing ? 0 : (preview?.opacity ?? layer.opacity)}
       {...drag.handlers}
-      stroke={selected && interactive ? '#5f98ad' : undefined}
-      strokeWidth={selected && interactive ? 2 : 0}
+      onDblClick={(event) => {
+        if (!interactive) return
+        event.cancelBubble = true
+        onSelect?.(layer.id)
+        onEdit?.(layer.id)
+      }}
+      stroke={selected && interactive && !editing ? '#5f98ad' : undefined}
+      strokeWidth={selected && interactive && !editing ? 2 : 0}
       strokeScaleEnabled={false}
+    />
+  )
+}
+
+function TextEditor({
+  layer,
+  view,
+  onCommit,
+  onCancel,
+}: {
+  layer: Layer
+  view: { scale: number; x: number; y: number }
+  onCommit: (text: string) => void
+  onCancel: () => void
+}) {
+  const [value, setValue] = useState(layer.text || '')
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const done = useRef(false)
+  const scale = Math.abs(layer.transform.scale_x) * view.scale
+  const width = Math.max(48, layer.width * scale)
+  const height = Math.max(28, layer.height * scale)
+  const fontSize = Math.max(12, (layer.font_size ?? 24) * scale)
+
+  useEffect(() => {
+    ref.current?.focus()
+    ref.current?.select()
+  }, [])
+
+  const finish = (next: string | null) => {
+    if (done.current) return
+    done.current = true
+    if (next === null) onCancel()
+    else onCommit(next)
+  }
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(event) => setValue(event.target.value)}
+      onBlur={() => finish(value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault()
+          finish(value)
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          finish(null)
+        }
+      }}
+      className="border-brand bg-paper text-ink absolute z-10 resize-none border px-1 py-0.5 outline-none"
+      style={{
+        left: view.x + layer.transform.x * view.scale,
+        top: view.y + layer.transform.y * view.scale,
+        width,
+        height,
+        fontSize,
+        color: layer.fill ?? '#141414',
+        lineHeight: `${height}px`,
+        textAlign: 'center',
+        transform: layer.transform.rotation ? `rotate(${layer.transform.rotation}deg)` : undefined,
+        transformOrigin: 'center center',
+      }}
     />
   )
 }

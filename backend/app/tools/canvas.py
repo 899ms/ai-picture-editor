@@ -12,6 +12,7 @@ from app.edits.document import (
     rotate,
     scale,
     set_opacity,
+    set_text,
     set_visible,
 )
 from app.layers import LayerMissing
@@ -37,6 +38,12 @@ class OpacityIn(LayerRef):
 
 class VisibleIn(LayerRef):
     visible: bool
+
+
+class TextIn(LayerRef):
+    text: str = Field(max_length=500)
+    font_size: float | None = Field(default=None, ge=8, le=400)
+    fill: str | None = Field(default=None, pattern=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
 
 class ScaleIn(LayerRef):
@@ -135,6 +142,20 @@ async def set_layer_visible(session: AsyncSession, run: ToolRun) -> dict:
         session,
         run,
         lambda doc, params: set_visible(doc, params.get(_LAYER), params["visible"]),
+    )
+
+
+async def set_layer_text(session: AsyncSession, run: ToolRun) -> dict:
+    return await _apply(
+        session,
+        run,
+        lambda doc, params: set_text(
+            doc,
+            params.get(_LAYER),
+            params["text"],
+            font_size=params.get("font_size"),
+            fill=params.get("fill"),
+        ),
     )
 
 
@@ -250,6 +271,13 @@ SET_LAYER_VISIBLE = _canvas(
     "显示或隐藏指定图层，不删除内容。",
     VisibleIn,
     set_layer_visible,
+)
+SET_LAYER_TEXT = _canvas(
+    "set_layer_text",
+    "改文字",
+    "修改文字图层的文案，可选字号与颜色。未指定图层时改最上层可见文字。",
+    TextIn,
+    set_layer_text,
 )
 REORDER_LAYER = _canvas(
     "reorder_layer",
