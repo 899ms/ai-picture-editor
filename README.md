@@ -1,30 +1,22 @@
+> 本项目为教学项目，提供完整文字教程 + 简历写法 + 面试题解 + 答疑服务，帮你提升项目能力，给简历增加亮点！
+>
+> ⭐️ 加入项目系列学习：[加入编程导航](https://www.codefather.cn/vip)
+
+## 一、项目介绍
+
 这是一套以 **AI Agent 驱动的图片编辑** 为核心的全栈项目教程，基于 Python 3.13 + FastAPI + LangChain + LangGraph + React 19 + Konva。你只需要输入一句话，AI 就能自动规划修图步骤、调用 21 种编辑工具帮你完成专业级修图，从文生图到抠图调色、区域编辑、图层拆分，全部自动搞定。
 
 ![](https://pic.yupi.icu/pine/image-20260901150955859.png)
 
-每一期文字教程都详细讲解了设计决策和实现细节，让你不只会做，还知道为什么这么做。
+### 为什么做这个项目？
+1）赛道火热：AI 修图和 AI 生图是目前最热门的 AI 应用方向之一，各大厂和创业公司都在布局。掌握 AI 图像处理和智能体开发，求职时非常有竞争力。
 
-![](https://pic.yupi.icu/pine/image-20260901160920204.png)
+2）技术含量高：这个项目涉及的技术面很广，从后端的 LangChain 模型接入、LangGraph 智能体、异步任务队列、对象存储，到前端的 Canvas 画布引擎、图层系统、选区交互，再到 AI 模型的文生图、语义分割、图像编辑，远不是增删改查能比的。
 
-这还不够，每个项目我都写了详细的简历写法和面试题解，做完项目直接写到简历上、突击面试，一条龙服务！
-
-![](https://pic.yupi.icu/pine/image-20260901160551415.png)
-
-真心换真心，我做项目教程的付出也得到了大家的认可，也帮很多同学拿到了大厂 offer~
-
-![](https://pic.yupi.icu/1/%E7%BC%96%E7%A8%8B%E5%AF%BC%E8%88%AA2026%20offer%E6%8A%A5%E5%96%9C.png)
-
-接下来鱼皮给大家快速介绍这个项目，希望让更多需要它的同学看到，把它变成自己的项目。
-
-秋招正处于黄金时段，简历上写满前沿技术，不仅求职有底气，做项目的能力也会大幅提升！
-
-**🧧 后文有加入学习的方式，千万不要错过！**
+3）全栈实战：一个项目同时练 Python 后端和 React 前端，后端重点在 Agent 架构和图像处理管线，前端重点在画布引擎和复杂交互，两端都有大量值得写进简历的技术点。
 
 
-
-## 项目介绍
-
-项目有 8 大核心能力。
+### 8 大核心能力
 
 1）AI 文生图，输入提示词就能出图
 
@@ -90,19 +82,7 @@
 
 
 
-当你学会这个项目后，你不仅能开发 AI 修图应用，更能把这套 Agent + 工具注册 + 异步执行的架构套用到任何需要 AI 驱动的业务场景中，比如 AI 设计工具、AI 视频编辑、AI 数据处理等等。
-
-学前沿技术、涨开发经验，全栈 AI Agent 实战开发，绝对让你收获满满！
-
-而且为了让更多同学参与学习，我直接把所有代码 **完整开源** ！能力强的同学可以自学，点个 star 就算对鱼皮的支持啦~
-
-> 开源仓库：https://github.com/yuyuanweb/ai-retouch-agent
-
-![](https://pic.yupi.icu/pine/image-20260901161242219.png)
-
-
-
-## 项目收获
+## 二、项目收获
 
 本项目选题新颖，紧跟 AI Agent 和 AIGC 趋势，以 **专业级 AI 修图工具** 为目标。区别于增删改查的烂大街项目，你将从零搭建一个集画布编辑器、AI Agent、异步任务、图层系统于一体的全栈应用，技术深度和广度都远超普通项目。
 
@@ -112,7 +92,7 @@ Python 全栈 + LangChain / LangGraph Agent + 专业画布编辑器 + 异步任�
 
 ![](https://pic.yupi.icu/pine/exec-78d8e822-f4ff-4152-9e72-0580bd4041ba.png)
 
-鱼皮给大家讲的是 **通用的 AI Agent 开发方法和真实工具产品从 0 到部署的全流程**，从这个项目中你可以学到：
+本项目给大家讲的是 **通用的 AI Agent 开发方法和真实工具产品从 0 到部署的全流程**，从这个项目中你可以学到：
 
 + 如何基于 FastAPI + SQLAlchemy 搭建 Python 全栈项目，实现 JWT Cookie 认证？
 + 如何设计 Provider 抽象层，一行配置切换 Mock 和真实 AI 模型？
@@ -125,13 +105,15 @@ Python 全栈 + LangChain / LangGraph Agent + 专业画布编辑器 + 异步任�
 + 如何实现多步计划的服务端校验、拓扑排序和人机协作？
 + 如何用 Docker 多阶段构建和 compose profile 实现一条命令部署？
 
-此外，还能学会很多架构设计、方案取舍、问题排查的方法，提升独立解决复杂问题的能力。鱼皮还给大家提供了大量的项目扩展点，有能力的同学可以进一步拉开和别人的区分度，无限进步！
+### 编程导航系列项目优势
+
+此外，还能学会很多架构设计、方案取舍、问题排查的方法，提升独立解决复杂问题的能力。本项目还给大家提供了大量的项目扩展点，有能力的同学可以进一步拉开和别人的区分度，无限进步！
 
 满满的项目正反馈：
 
 ![编程导航 26 年报喜](https://pic.yupi.icu/1/%E7%BC%96%E7%A8%8B%E5%AF%BC%E8%88%AA%2026%20%E5%B9%B4%E6%8A%A5%E5%96%9C%E6%88%AA%E5%9B%BE.png)
 
-除视频教程外，鱼皮编程导航的项目还提供：
+除视频教程外，编程导航的项目还提供：
 
 | 教程资料                     | 求职助力                       |
 | ---------------------------- | ------------------------------ |
@@ -142,29 +124,7 @@ Python 全栈 + LangChain / LangGraph Agent + 专业画布编辑器 + 异步任�
 
 ![](https://pic.yupi.icu/1/%E9%B1%BC%E7%9A%AE%E9%A1%B9%E7%9B%AE%E5%AE%9E%E6%88%98%E7%9A%84%E4%BC%98%E5%8A%BF%E5%A4%A7.jpeg)
 
-
-
-## 加入学习
-
-比起看网上的教程学习，鱼皮项目系列的优势：从学知识 => 实践项目 => 复习笔记 => 项目答疑 => 简历写法 => 面试题解的一条龙服务
-
-编程导航已有 **近 30 套项目教程！** 每个项目的学习重点不同，从 0 到 1 带做，涵盖企业级 Java 后端 + 前端全栈项目、最新 AI 应用开发 + AI 编程项目、大厂架构进阶项目。
-
-![](https://pic.yupi.icu/1/%E9%A1%B9%E7%9B%AE%E6%95%99%E7%A8%8B.png)
-
-欢迎加入编程导航，不仅能学习往期 **所有** 原创项目，还能享受更多原创资料、1 对 1 学习和求职指导、几百场面试视频，开启你的编程起飞之旅~
-
-🧧 新项目刚刚完结，给大家临时发放一波限时特惠，**仅限 1 天**，扫码即可领券加入。
-
-仅限前 50 位，速来学习，三天内不满意全额退款！
-
-1 天不到 1 块钱，绝对是对自己最值的投资！[成为编程导航会员](https://www.codefather.cn/vip) 后，可以解锁近 30 套项目教程和海量资料。
-
-下面是更多关于本项目的介绍。
-
-
-
-## 更多介绍
+## 三、更多介绍
 
 该项目功能完整，涵盖文生图、画布编辑器、AI Agent 对话、编辑工具、区域选择、局部编辑、图层系统、多步计划、营销图、批量处理 10 大模块，覆盖了一个真实 AI 修图产品的核心业务场景。
 
@@ -180,18 +140,106 @@ Python 全栈 + LangChain / LangGraph Agent + 专业画布编辑器 + 异步任�
 
 ![](https://pic.yupi.icu/pine/business-flow.png)
 
+## 四、快速运行
+
+> 完整的保姆级步骤请参考[《保姆级本地运行指南》](https://www.codefather.cn/course/2099386518517915649/section/2099389234463973378)
+
+### 前置条件
+
+- Docker >= 20（含 Compose）
+- Python >= 3.13
+- Node.js >= 18（推荐 20+）
+- 一个 [阿里云百炼 API Key](https://bailian.console.aliyun.com/)（🔧 可选，用于 AI 文生图、图像编辑和 Agent 对话）
+
+### 1. 克隆项目
+
+```bash
+git clone https://github.com/yuyuanweb/ai-retouch-agent.git
+cd ai-retouch-agent
+```
+
+### 2. 启动中间件
+
+```bash
+docker compose up -d
+```
+
+### 3. 启动后端
+
+```bash
+cd backend
+
+# 安装 uv（已有可跳过）
+curl -LsSf https://astral.sh/uv/install.sh | sh   # Windows: powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 安装依赖（国内可加 --index-url https://pypi.tuna.tsinghua.edu.cn/simple）
+uv sync --all-extras
+
+# 配置环境变量
+cp .env.example .env                  # 至少确认 IMAGE_PROVIDER，mock 免费跑通全流程，dashscope 接真实模型
+
+# 初始化数据库
+uv run alembic upgrade head
+
+# 启动 API 服务（终端一）
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 7302
+
+# 启动 Worker（新开终端二）
+uv run arq app.worker.WorkerSettings
+```
+
+启动成功后访问 [http://localhost:7302/api/health](http://localhost:7302/api/health)，三个字段全是 `ok` 即为正常。
+
+### 4. 启动前端
+
+**新开一个终端**：
+
+```bash
+cd frontend
+npm install                           # 国内可加 --registry=https://registry.npmmirror.com
+npm run dev
+```
+
+浏览器打开 [http://localhost:7301](http://localhost:7301) 即可使用。
+
+### 5. 运行测试
+
+```bash
+cd backend
+uv run pytest
+```
+
+测试通过 mock 隔离了大模型和第三方接口调用，不消耗 API 额度。
+
+### 6. 部署
+
+`Dockerfile` 提供了多阶段构建，前端编译后打进后端镜像同源托管。服务器上安全组放开 7302、7313 端口，然后：
+
+```bash
+cp .env.example .env
+# 生产环境必改：JWT_SECRET（openssl rand -hex 32）、S3_PUBLIC_ENDPOINT=http://你的公网IP:7313
+
+docker compose --profile deploy up -d --build
+docker compose --profile deploy exec app alembic upgrade head
+```
+
+浏览器打开 `http://你的公网IP:7302`。
 
 
-## 加入学习
+## 加入项目学习
 
-欢迎加入编程导航，不仅能学习往期 **所有** 原创项目（近 30 套），还能享受更多原创资料、学习和求职指导、几百场面试视频，开启你的编程起飞之旅~
+编程导航已有 **近 30 套项目教程！** 每个项目的学习重点不同，从 0 到 1 带做，有大量完整的 **AI 应用开发 + AI 编程 + 全栈项目**，零基础也能学！
 
-🧧 新项目刚刚完结，给大家临时发放一波限时特惠，**仅限 1 天**，扫码即可领券加入。
+详细请见：[https://codefather.cn/course](https://www.codefather.cn/course)（在该页面右侧有教程推荐和学习建议）
 
-仅限前 50 位，速来学习，三天内不满意全额退款！
+![](https://pic.yupi.icu/1/%E9%A1%B9%E7%9B%AE%E6%95%99%E7%A8%8B.png)
 
-已经有 **几万名** 小伙伴学起来了，还有很多大家自发整理的笔记。
+欢迎加入 [编程导航](https://www.codefather.cn/vip)，加入后不仅可以全程跟学本项目，往期 **近 30 套原创项目教程** 也都可以无限回看。还能享受更多原创技术资料、学习和求职指导、上百场面试回放视频，开启你的编程起飞之旅~
 
-不得不说，做项目真的给了很多同学坚持学习的目标、也有了更多拿 Offer 的机会，大家的动力也更足了！冲冲冲！
+🧧 助力新项目学习，给大家发放 **限时编程导航优惠券**，扫码即可领券加入。加入三天内不满意可全额退款，欢迎加入体验，名额有限，速来学习！
 
-![](https://pic.yupi.icu/1/offer%25E6%2588%25AA%25E5%259B%25BE.png)
+![](https://pic.yupi.icu/1/437345684-56411098-b60e-4267-8ba2-4ebc5d416afc.png)
+
+1 天不到 1 块钱，绝对是对自己最值的投资！成为编程导航会员后，可以解锁近 30 套项目的教程和资料，PC 网站和 APP 都可以学习，如图：
+
+![](https://pic.yupi.icu/1/image-20250120113756426-20250422160856746.png)
